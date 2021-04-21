@@ -746,7 +746,6 @@ def echo_alive(message):
     print(message)
     return message
 
-
 def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
     try:
         __check_supported_os()
