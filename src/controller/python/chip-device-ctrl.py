@@ -859,8 +859,7 @@ class DeviceMgrCmd(Cmd):
 
 def echo_alive(message):
     print(message)
-    lower_case_msg = message.casefold()
-    return lower_case_msg
+    return message
 
 def create_rpc_server():
     with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
@@ -875,6 +874,8 @@ def create_rpc_server():
 
 def main():
     create_rpc_server()
+
+    # Never Executed: does not return here
     optParser = OptionParser()
     optParser.add_option(
         "-r",
