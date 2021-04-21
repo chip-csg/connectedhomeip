@@ -743,6 +743,7 @@ device_manager = DeviceMgrCmd(rendezvousAddr=None,
 def echo_alive(message):
     print(message)
     return message
+<<<<<<< HEAD
 
 def ble_scan():
     device_manager.do_blescan("")
@@ -870,6 +871,8 @@ def ip_connect(ip_address: string, pin_code: int, node_id: int) -> Dict[str, Any
         return __get_response_dict(status = StatusCodeEnum.SUCCESS)
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+=======
+>>>>>>> f54a3ae929 (Remove message lowercasing on rpc)
 
 def qr_code_parse(qr_code):
     try:
@@ -910,9 +913,15 @@ def __check_supported_os()-> bool:
 ######--------------------------------------------------######
 
 def main():
+<<<<<<< HEAD
     start_rpc_server()
     
     # Never reach here
+=======
+    create_rpc_server()
+
+    # Never Executed: does not return here
+>>>>>>> f54a3ae929 (Remove message lowercasing on rpc)
     optParser = OptionParser()
     optParser.add_option(
         "-r",
