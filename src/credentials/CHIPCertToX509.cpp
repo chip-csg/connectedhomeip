@@ -40,6 +40,7 @@
 #include <protocols/Protocols.h>
 #include <support/CodeUtils.h>
 #include <support/DLLUtil.h>
+#include <support/SafeInt.h>
 
 namespace chip {
 namespace Credentials {
@@ -47,6 +48,7 @@ namespace Credentials {
 using namespace chip::ASN1;
 using namespace chip::TLV;
 using namespace chip::Protocols;
+using namespace chip::Crypto;
 
 static CHIP_ERROR DecodeConvertDN(TLVReader & reader, ASN1Writer & writer, ChipDN & dn)
 {
@@ -159,7 +161,7 @@ static CHIP_ERROR DecodeConvertDN(TLVReader & reader, ASN1Writer & writer, ChipD
                     }
 
                     // Save the string value in the caller's DN structure.
-                    err = dn.AddAttribute(attrOID, asn1AttrVal, asn1AttrValLen);
+                    err = dn.AddAttribute(attrOID, ByteSpan(asn1AttrVal, asn1AttrValLen));
                     SuccessOrExit(err);
                 }
 
@@ -280,19 +282,17 @@ static CHIP_ERROR DecodeConvertSubjectPublicKeyInfo(TLVReader & reader, ASN1Writ
         }
         ASN1_END_SEQUENCE;
 
-        err = reader.Next(kTLVType_ByteString, ContextTag(kTag_EllipticCurvePublicKey));
-        SuccessOrExit(err);
+        ReturnErrorOnFailure(reader.Next(kTLVType_ByteString, ContextTag(kTag_EllipticCurvePublicKey)));
+        VerifyOrReturnError(reader.GetLength() == certData.mPublicKey.size(), CHIP_ERROR_UNSUPPORTED_CERT_FORMAT);
 
-        err = reader.GetDataPtr(certData.mPublicKey);
-        SuccessOrExit(err);
+        const uint8_t * ptr;
+        ReturnErrorOnFailure(reader.GetDataPtr(ptr));
+        certData.mPublicKey = P256PublicKeySpan(ptr);
 
-        uint32_t len = reader.GetLength();
-        VerifyOrExit(len == chip::Crypto::kP256_PublicKey_Length, err = CHIP_ERROR_UNSUPPORTED_CERT_FORMAT);
-        certData.mPublicKeyLen = static_cast<uint8_t>(len);
+        static_assert(P256PublicKeySpan().size() <= UINT16_MAX, "Public key size doesn't fit in a uint16_t");
 
         // For EC certs, the subjectPublicKey BIT STRING contains the X9.62 encoded EC point.
-        err = writer.PutBitString(0, certData.mPublicKey, certData.mPublicKeyLen);
-        SuccessOrExit(err);
+        ReturnErrorOnFailure(writer.PutBitString(0, certData.mPublicKey.data(), static_cast<uint16_t>(certData.mPublicKey.size())));
     }
     ASN1_END_SEQUENCE;
 
@@ -304,7 +304,6 @@ static CHIP_ERROR DecodeConvertAuthorityKeyIdentifierExtension(TLVReader & reade
                                                                ChipCertificateData & certData)
 {
     CHIP_ERROR err;
-    uint32_t len;
 
     certData.mCertFlags.Set(CertFlags::kExtPresent_AuthKeyId);
 
@@ -315,19 +314,18 @@ static CHIP_ERROR DecodeConvertAuthorityKeyIdentifierExtension(TLVReader & reade
     {
         // keyIdentifier [0] IMPLICIT KeyIdentifier
         // KeyIdentifier ::= OCTET STRING
-        VerifyOrExit(reader.GetType() == kTLVType_ByteString, err = CHIP_ERROR_WRONG_TLV_TYPE);
-        VerifyOrExit(reader.GetTag() == ContextTag(kTag_AuthorityKeyIdentifier), err = CHIP_ERROR_UNEXPECTED_TLV_ELEMENT);
+        VerifyOrReturnError(reader.GetType() == kTLVType_ByteString, CHIP_ERROR_WRONG_TLV_TYPE);
+        VerifyOrReturnError(reader.GetTag() == ContextTag(kTag_AuthorityKeyIdentifier), CHIP_ERROR_UNEXPECTED_TLV_ELEMENT);
+        VerifyOrReturnError(reader.GetLength() == certData.mAuthKeyId.size(), CHIP_ERROR_UNSUPPORTED_CERT_FORMAT);
 
-        err = reader.GetDataPtr(certData.mAuthKeyId.mId);
-        SuccessOrExit(err);
+        const uint8_t * ptr;
+        ReturnErrorOnFailure(reader.GetDataPtr(ptr));
+        certData.mAuthKeyId = CertificateKeyId(ptr);
 
-        len = reader.GetLength();
-        VerifyOrExit(len == kKeyIdentifierLength, err = CHIP_ERROR_UNSUPPORTED_CERT_FORMAT);
+        static_assert(CertificateKeyId().size() <= UINT16_MAX, "Authority key id size doesn't fit in a uint16_t");
 
-        certData.mAuthKeyId.mLen = static_cast<uint8_t>(len);
-
-        err = writer.PutOctetString(kASN1TagClass_ContextSpecific, 0, certData.mAuthKeyId.mId, certData.mAuthKeyId.mLen);
-        SuccessOrExit(err);
+        ReturnErrorOnFailure(writer.PutOctetString(kASN1TagClass_ContextSpecific, 0, certData.mAuthKeyId.data(),
+                                                   static_cast<uint16_t>(certData.mAuthKeyId.size())));
     }
     ASN1_END_SEQUENCE;
 
@@ -338,31 +336,26 @@ exit:
 static CHIP_ERROR DecodeConvertSubjectKeyIdentifierExtension(TLVReader & reader, ASN1Writer & writer,
                                                              ChipCertificateData & certData)
 {
-    CHIP_ERROR err;
-    uint32_t len;
-
     certData.mCertFlags.Set(CertFlags::kExtPresent_SubjectKeyId);
 
     // SubjectKeyIdentifier extension MUST be marked as non-critical (default).
 
     // SubjectKeyIdentifier ::= KeyIdentifier
     // KeyIdentifier ::= OCTET STRING
-    VerifyOrExit(reader.GetType() == kTLVType_ByteString, err = CHIP_ERROR_WRONG_TLV_TYPE);
-    VerifyOrExit(reader.GetTag() == ContextTag(kTag_SubjectKeyIdentifier), err = CHIP_ERROR_UNEXPECTED_TLV_ELEMENT);
+    VerifyOrReturnError(reader.GetType() == kTLVType_ByteString, CHIP_ERROR_WRONG_TLV_TYPE);
+    VerifyOrReturnError(reader.GetTag() == ContextTag(kTag_SubjectKeyIdentifier), CHIP_ERROR_UNEXPECTED_TLV_ELEMENT);
+    VerifyOrReturnError(reader.GetLength() == certData.mSubjectKeyId.size(), CHIP_ERROR_UNSUPPORTED_CERT_FORMAT);
 
-    len = reader.GetLength();
-    VerifyOrExit(len == kKeyIdentifierLength, err = CHIP_ERROR_UNSUPPORTED_CERT_FORMAT);
+    const uint8_t * ptr;
+    ReturnErrorOnFailure(reader.GetDataPtr(ptr));
+    certData.mSubjectKeyId = CertificateKeyId(ptr);
 
-    certData.mSubjectKeyId.mLen = static_cast<uint8_t>(len);
+    static_assert(CertificateKeyId().size() <= UINT16_MAX, "Subject key id size doesn't fit in a uint16_t");
 
-    err = reader.GetDataPtr(certData.mSubjectKeyId.mId);
-    SuccessOrExit(err);
+    ReturnErrorOnFailure(
+        writer.PutOctetString(certData.mSubjectKeyId.data(), static_cast<uint16_t>(certData.mSubjectKeyId.size())));
 
-    err = writer.PutOctetString(certData.mSubjectKeyId.mId, certData.mSubjectKeyId.mLen);
-    SuccessOrExit(err);
-
-exit:
-    return err;
+    return CHIP_NO_ERROR;
 }
 
 static CHIP_ERROR DecodeConvertKeyUsageExtension(TLVReader & reader, ASN1Writer & writer, ChipCertificateData & certData)
@@ -674,78 +667,26 @@ exit:
 
 CHIP_ERROR DecodeECDSASignature(TLVReader & reader, ChipCertificateData & certData)
 {
-    CHIP_ERROR err;
-    TLVType containerType;
-    uint32_t len;
+    ReturnErrorOnFailure(reader.Next(kTLVType_ByteString, ContextTag(kTag_ECDSASignature)));
 
-    err = reader.Next(kTLVType_Structure, ContextTag(kTag_ECDSASignature));
-    SuccessOrExit(err);
+    VerifyOrReturnError(reader.GetLength() == certData.mSignature.size(), CHIP_ERROR_UNSUPPORTED_CERT_FORMAT);
 
-    err = reader.EnterContainer(containerType);
-    SuccessOrExit(err);
+    const uint8_t * ptr;
+    ReturnErrorOnFailure(reader.GetDataPtr(ptr));
+    certData.mSignature = P256ECDSASignatureSpan(ptr);
 
-    // r INTEGER
-    err = reader.Next(kTLVType_ByteString, ContextTag(kTag_ECDSASignature_r));
-    SuccessOrExit(err);
-
-    err = reader.GetDataPtr(certData.mSignature.R);
-    SuccessOrExit(err);
-
-    len = reader.GetLength();
-    VerifyOrExit(len <= UINT8_MAX, err = CHIP_ERROR_UNSUPPORTED_CERT_FORMAT);
-
-    certData.mSignature.RLen = static_cast<uint8_t>(len);
-
-    // s INTEGER
-    err = reader.Next(kTLVType_ByteString, ContextTag(kTag_ECDSASignature_s));
-    SuccessOrExit(err);
-
-    err = reader.GetDataPtr(certData.mSignature.S);
-    SuccessOrExit(err);
-
-    len = reader.GetLength();
-    VerifyOrExit(len <= UINT8_MAX, err = CHIP_ERROR_UNSUPPORTED_CERT_FORMAT);
-
-    certData.mSignature.SLen = static_cast<uint8_t>(len);
-
-    // Verify no more elements in the signature.
-    reader.Next();
-    err = reader.VerifyEndOfContainer();
-    SuccessOrExit(err);
-
-    err = reader.ExitContainer(containerType);
-    SuccessOrExit(err);
-
-exit:
-    return err;
+    return CHIP_NO_ERROR;
 }
 
 static CHIP_ERROR DecodeConvertECDSASignature(TLVReader & reader, ASN1Writer & writer, ChipCertificateData & certData)
 {
-    CHIP_ERROR err;
+    CHIP_ERROR err = CHIP_NO_ERROR;
 
-    err = DecodeECDSASignature(reader, certData);
-    SuccessOrExit(err);
+    ReturnErrorOnFailure(DecodeECDSASignature(reader, certData));
 
     // signatureValue BIT STRING
     // Per RFC3279, the ECDSA signature value is encoded in DER encapsulated in the signatureValue BIT STRING.
-    ASN1_START_BIT_STRING_ENCAPSULATED
-    {
-        // Ecdsa-Sig-Value ::= SEQUENCE
-        ASN1_START_SEQUENCE
-        {
-            // r INTEGER
-            err = writer.PutValue(kASN1TagClass_Universal, kASN1UniversalTag_Integer, false, certData.mSignature.R,
-                                  certData.mSignature.RLen);
-            SuccessOrExit(err);
-
-            // s INTEGER
-            err = writer.PutValue(kASN1TagClass_Universal, kASN1UniversalTag_Integer, false, certData.mSignature.S,
-                                  certData.mSignature.SLen);
-            SuccessOrExit(err);
-        }
-        ASN1_END_SEQUENCE;
-    }
+    ASN1_START_BIT_STRING_ENCAPSULATED { ReturnErrorOnFailure(ConvertECDSASignatureRawToDER(certData.mSignature, writer)); }
     ASN1_END_ENCAPSULATED;
 
 exit:
@@ -889,30 +830,27 @@ exit:
     return err;
 }
 
-DLL_EXPORT CHIP_ERROR ConvertChipCertToX509Cert(const uint8_t * chipCert, uint32_t chipCertLen, uint8_t * x509CertBuf,
-                                                uint32_t x509CertBufSize, uint32_t & x509CertLen)
+DLL_EXPORT CHIP_ERROR ConvertChipCertToX509Cert(const ByteSpan chipCert, uint8_t * x509CertBuf, uint32_t x509CertBufSize,
+                                                uint32_t & x509CertLen)
 {
-    CHIP_ERROR err;
     TLVReader reader;
     ASN1Writer writer;
     ChipCertificateData certData;
 
-    reader.Init(chipCert, chipCertLen);
+    VerifyOrReturnError(!chipCert.empty(), CHIP_ERROR_INVALID_ARGUMENT);
+    VerifyOrReturnError(CanCastTo<uint32_t>(chipCert.size()), CHIP_ERROR_INVALID_ARGUMENT);
+
+    reader.Init(chipCert.data(), static_cast<uint32_t>(chipCert.size()));
 
     writer.Init(x509CertBuf, x509CertBufSize);
 
     certData.Clear();
 
-    err = DecodeConvertCert(reader, writer, certData);
-    SuccessOrExit(err);
-
-    err = writer.Finalize();
-    SuccessOrExit(err);
+    ReturnErrorOnFailure(DecodeConvertCert(reader, writer, certData));
 
     x509CertLen = writer.GetLengthWritten();
 
-exit:
-    return err;
+    return CHIP_NO_ERROR;
 }
 
 CHIP_ERROR DecodeChipCert(const uint8_t * chipCert, uint32_t chipCertLen, ChipCertificateData & certData)

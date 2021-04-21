@@ -31,6 +31,7 @@
 #include <transport/raw/MessageHeader.h>
 
 #include <inttypes.h>
+#include <limits>
 
 namespace chip {
 namespace Transport {
@@ -86,7 +87,7 @@ CHIP_ERROR TCPBase::Init(TcpListenParameters & params)
 #if INET_CONFIG_ENABLE_TCP_ENDPOINT
     err = params.GetInetLayer()->NewTCPEndPoint(&mListenSocket);
 #else
-    err = CHIP_SYSTEM_ERROR_NOT_SUPPORTED;
+    err = CHIP_ERROR_UNSUPPORTED_CHIP_FEATURE;
 #endif
     SuccessOrExit(err);
 
@@ -248,7 +249,7 @@ CHIP_ERROR TCPBase::SendAfterConnect(const PeerAddress & addr, System::PacketBuf
 #if INET_CONFIG_ENABLE_TCP_ENDPOINT
     err = mListenSocket->Layer().NewTCPEndPoint(&endPoint);
 #else
-    err = CHIP_SYSTEM_ERROR_NOT_SUPPORTED;
+    err = CHIP_ERROR_UNSUPPORTED_CHIP_FEATURE;
 #endif
     SuccessOrExit(err);
 
@@ -352,13 +353,15 @@ CHIP_ERROR TCPBase::ProcessSingleMessage(const PeerAddress & peerAddress, Active
     return CHIP_NO_ERROR;
 }
 
-INET_ERROR TCPBase::OnTcpReceive(Inet::TCPEndPoint * endPoint, System::PacketBufferHandle && buffer)
+CHIP_ERROR TCPBase::OnTcpReceive(Inet::TCPEndPoint * endPoint, System::PacketBufferHandle && buffer)
 {
     Inet::IPAddress ipAddress;
     uint16_t port;
+    Inet::InterfaceId interfaceId = INET_NULL_INTERFACEID;
 
     endPoint->GetPeerInfo(&ipAddress, &port);
-    PeerAddress peerAddress = PeerAddress::TCP(ipAddress, port);
+    endPoint->GetInterfaceId(&interfaceId);
+    PeerAddress peerAddress = PeerAddress::TCP(ipAddress, port, interfaceId);
 
     TCPBase * tcp  = reinterpret_cast<TCPBase *>(endPoint->AppState);
     CHIP_ERROR err = tcp->ProcessReceivedBuffer(endPoint, peerAddress, std::move(buffer));
@@ -367,21 +370,23 @@ INET_ERROR TCPBase::OnTcpReceive(Inet::TCPEndPoint * endPoint, System::PacketBuf
     {
         // Connection could need to be closed at this point
         ChipLogError(Inet, "Failed to accept received TCP message: %s", ErrorStr(err));
-        return INET_ERROR_UNEXPECTED_EVENT;
+        return CHIP_ERROR_UNEXPECTED_EVENT;
     }
-    return INET_NO_ERROR;
+    return CHIP_NO_ERROR;
 }
 
-void TCPBase::OnConnectionComplete(Inet::TCPEndPoint * endPoint, INET_ERROR inetErr)
+void TCPBase::OnConnectionComplete(Inet::TCPEndPoint * endPoint, CHIP_ERROR inetErr)
 {
     CHIP_ERROR err          = CHIP_NO_ERROR;
     bool foundPendingPacket = false;
     TCPBase * tcp           = reinterpret_cast<TCPBase *>(endPoint->AppState);
     Inet::IPAddress ipAddress;
     uint16_t port;
+    Inet::InterfaceId interfaceId = INET_NULL_INTERFACEID;
 
     endPoint->GetPeerInfo(&ipAddress, &port);
-    PeerAddress addr = PeerAddress::TCP(ipAddress, port);
+    endPoint->GetInterfaceId(&interfaceId);
+    PeerAddress addr = PeerAddress::TCP(ipAddress, port, interfaceId);
 
     // Send any pending packets
     for (size_t i = 0; i < tcp->mPendingPacketsSize; i++)
@@ -444,7 +449,7 @@ void TCPBase::OnConnectionComplete(Inet::TCPEndPoint * endPoint, INET_ERROR inet
     }
 }
 
-void TCPBase::OnConnectionClosed(Inet::TCPEndPoint * endPoint, INET_ERROR err)
+void TCPBase::OnConnectionClosed(Inet::TCPEndPoint * endPoint, CHIP_ERROR err)
 {
     TCPBase * tcp = reinterpret_cast<TCPBase *>(endPoint->AppState);
 
@@ -493,7 +498,7 @@ void TCPBase::OnConnectionReceived(Inet::TCPEndPoint * listenEndPoint, Inet::TCP
     }
 }
 
-void TCPBase::OnAcceptError(Inet::TCPEndPoint * endPoint, INET_ERROR err)
+void TCPBase::OnAcceptError(Inet::TCPEndPoint * endPoint, CHIP_ERROR err)
 {
     ChipLogError(Inet, "Accept error: %s", ErrorStr(err));
 }
@@ -507,9 +512,11 @@ void TCPBase::Disconnect(const PeerAddress & address)
         {
             Inet::IPAddress ipAddress;
             uint16_t port;
+            Inet::InterfaceId interfaceId = INET_NULL_INTERFACEID;
 
             mActiveConnections[i].mEndPoint->GetPeerInfo(&ipAddress, &port);
-            if (address == PeerAddress::TCP(ipAddress, port))
+            mActiveConnections[i].mEndPoint->GetInterfaceId(&interfaceId);
+            if (address == PeerAddress::TCP(ipAddress, port, interfaceId))
             {
                 // NOTE: this leaves the socket in TIME_WAIT.
                 // Calling Abort() would clean it since SO_LINGER would be set to 0,

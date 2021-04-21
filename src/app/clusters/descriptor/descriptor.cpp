@@ -33,7 +33,7 @@ using namespace chip;
 
 constexpr const char * kErrorStr = "Descriptor cluster (0x%02x) Error setting '%s' attribute: 0x%02x";
 
-EmberAfStatus writeAttribute(uint8_t endpoint, AttributeId attributeId, uint8_t * buffer, int32_t index = -1)
+EmberAfStatus writeAttribute(EndpointId endpoint, AttributeId attributeId, uint8_t * buffer, int32_t index = -1)
 {
     EmberAfAttributeSearchRecord record;
     record.endpoint         = endpoint;
@@ -53,7 +53,7 @@ EmberAfStatus writeAttribute(uint8_t endpoint, AttributeId attributeId, uint8_t 
     return emAfReadOrWriteAttribute(&record, NULL, buffer, 0, true, index + 1);
 }
 
-EmberAfStatus writeClientServerAttribute(uint8_t endpoint, bool server)
+EmberAfStatus writeClientServerAttribute(EndpointId endpoint, bool server)
 {
     EmberAfStatus status    = EMBER_ZCL_STATUS_SUCCESS;
     AttributeId attributeId = server ? ZCL_SERVER_LIST_ATTRIBUTE_ID : ZCL_CLIENT_LIST_ATTRIBUTE_ID;
@@ -71,24 +71,24 @@ EmberAfStatus writeClientServerAttribute(uint8_t endpoint, bool server)
     return writeAttribute(endpoint, attributeId, (uint8_t *) &clusterCount);
 }
 
-EmberAfStatus writeServerAttribute(uint8_t endpoint)
+EmberAfStatus writeServerAttribute(EndpointId endpoint)
 {
     return writeClientServerAttribute(endpoint, true);
 }
 
-EmberAfStatus writeClientAttribute(uint8_t endpoint)
+EmberAfStatus writeClientAttribute(EndpointId endpoint)
 {
     return writeClientServerAttribute(endpoint, false);
 }
 
-EmberAfStatus writeDeviceAttribute(uint8_t endpoint)
+EmberAfStatus writeDeviceAttribute(EndpointId endpoint, uint16_t index)
 {
     EmberAfStatus status    = EMBER_ZCL_STATUS_SUCCESS;
     AttributeId attributeId = ZCL_DEVICE_LIST_ATTRIBUTE_ID;
 
     uint16_t deviceTypeCount  = 1;
-    DeviceTypeId deviceTypeId = emberAfDeviceIdFromIndex(endpoint);
-    uint16_t revision         = emberAfDeviceVersionFromIndex(endpoint);
+    DeviceTypeId deviceTypeId = emberAfDeviceIdFromIndex(index);
+    uint16_t revision         = emberAfDeviceVersionFromIndex(index);
 
     EmberAfDeviceType deviceType;
     deviceType.type     = deviceTypeId;
@@ -100,7 +100,7 @@ EmberAfStatus writeDeviceAttribute(uint8_t endpoint)
     return writeAttribute(endpoint, attributeId, (uint8_t *) &deviceTypeCount);
 }
 
-EmberAfStatus writePartsAttribute(uint8_t endpoint)
+EmberAfStatus writePartsAttribute(EndpointId endpoint)
 {
     EmberAfStatus status    = EMBER_ZCL_STATUS_SUCCESS;
     AttributeId attributeId = ZCL_PARTS_LIST_ATTRIBUTE_ID;
@@ -109,12 +109,15 @@ EmberAfStatus writePartsAttribute(uint8_t endpoint)
 
     if (endpoint == 0x00)
     {
-        for (uint8_t endpointIndex = 1; endpointIndex < emberAfEndpointCount(); endpointIndex++)
+        for (uint16_t endpointIndex = 1; endpointIndex < emberAfEndpointCount(); endpointIndex++)
         {
-            EndpointId endpointId = emberAfEndpointFromIndex(endpointIndex);
-            status                = writeAttribute(endpoint, attributeId, (uint8_t *) &endpointId, partsCount);
-            VerifyOrReturnError(status == EMBER_ZCL_STATUS_SUCCESS, status);
-            partsCount++;
+            if (emberAfEndpointIndexIsEnabled(endpointIndex))
+            {
+                EndpointId endpointId = emberAfEndpointFromIndex(endpointIndex);
+                status                = writeAttribute(endpoint, attributeId, (uint8_t *) &endpointId, partsCount);
+                VerifyOrReturnError(status == EMBER_ZCL_STATUS_SUCCESS, status);
+                partsCount++;
+            }
         }
     }
 
@@ -125,7 +128,7 @@ void emberAfPluginDescriptorServerInitCallback(void)
 {
     EmberAfStatus status = EMBER_ZCL_STATUS_SUCCESS;
 
-    for (uint8_t index = 0; index < emberAfEndpointCount(); index++)
+    for (uint16_t index = 0; index < emberAfEndpointCount(); index++)
     {
         EndpointId endpoint = emberAfEndpointFromIndex(index);
         if (!emberAfContainsCluster(endpoint, ZCL_DESCRIPTOR_CLUSTER_ID))
@@ -133,7 +136,12 @@ void emberAfPluginDescriptorServerInitCallback(void)
             continue;
         }
 
-        status = writeDeviceAttribute(endpoint);
+        if (!emberAfEndpointIndexIsEnabled(index))
+        {
+            continue;
+        }
+
+        status = writeDeviceAttribute(endpoint, index);
         VerifyOrReturn(status == EMBER_ZCL_STATUS_SUCCESS, ChipLogError(Zcl, kErrorStr, endpoint, "device", status));
 
         status = writeServerAttribute(endpoint);

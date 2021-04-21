@@ -16,12 +16,12 @@
  */
 
 // Import helpers from zap core
-const zapPath      = '../../../../../third_party/zap/repo/src-electron/';
-const queryImpexp  = require(zapPath + 'db/query-impexp.js')
-const templateUtil = require(zapPath + 'generator/template-util.js')
-const zclHelper    = require(zapPath + 'generator/helper-zcl.js')
-const zclQuery     = require(zapPath + 'db/query-zcl.js')
-const cHelper      = require(zapPath + 'generator/helper-c.js')
+const zapPath       = '../../../../../third_party/zap/repo/src-electron/';
+const templateUtil  = require(zapPath + 'generator/template-util.js')
+const queryEndpoint = require(zapPath + 'db/query-endpoint.js')
+const zclHelper     = require(zapPath + 'generator/helper-zcl.js')
+const zclQuery      = require(zapPath + 'db/query-zcl.js')
+const cHelper       = require(zapPath + 'generator/helper-c.js')
 
 const StringHelper    = require('../../common/StringHelper.js');
 const ChipTypesHelper = require('../../common/ChipTypesHelper.js');
@@ -37,7 +37,7 @@ const ChipTypesHelper = require('../../common/ChipTypesHelper.js');
  */
 function user_cluster_has_enabled_manufacturer_command(name, side, options)
 {
-  return queryImpexp.exportEndPointTypeIds(this.global.db, this.global.sessionId)
+  return queryEndpoint.selectEndPointTypeIds(this.global.db, this.global.sessionId)
       .then((endpointTypes) => zclQuery.exportClustersAndEndpointDetailsFromEndpointTypes(this.global.db, endpointTypes))
       .then((endpointsAndClusters) => zclQuery.exportCommandDetailsFromAllEndpointTypesAndClusters(
                 this.global.db, endpointsAndClusters))
@@ -132,18 +132,23 @@ function asReadType(type)
       const basicType = ChipTypesHelper.asBasicType(zclType);
       switch (basicType) {
       case 'int8_t':
+        return 'Int8s';
       case 'uint8_t':
         return 'Int8u';
       case 'int16_t':
+        return 'Int16s';
       case 'uint16_t':
         return 'Int16u';
       case 'int24_t':
+        return 'Int24s';
       case 'uint24_t':
         return 'Int24u';
       case 'int32_t':
+        return 'Int32s';
       case 'uint32_t':
         return 'Int32u';
       case 'int64_t':
+        return 'Int64s';
       case 'uint64_t':
         return 'Int64u';
       default:
@@ -157,47 +162,17 @@ function asReadType(type)
   return templateUtil.templatePromise(this.global, promise)
 }
 
-/**
- * Returns CHIP specific type for ZCL framework
- * This function is flawed since it relies on the
- * type label for CHIP type conversion. CHIP specific XML should have the
- * correct type directly embedded inside.
- *
- * @param {*} label : The xml label of the type.
- * @param {*} type : The xml type to be converted
- */
-function asChipUnderlyingType(label, type)
-{
-
-  if (zclHelper.isStrEqual(label, "endpoint")) {
-    return 'chip::EndpointId';
-  } else if (zclHelper.isStrEqual(label, "endpointId")) {
-    return 'chip::EndpointId';
-  } else if (zclHelper.isStrEqual(type, "CLUSTER_ID")) {
-    return 'chip::ClusterId';
-  } else if (zclHelper.isStrEqual(type, "ATTRIBUTE_ID")) {
-    return 'chip::AttributeId';
-  } else if (zclHelper.isStrEqual(label, "groupId")) {
-    return 'chip::GroupId';
-  } else if (zclHelper.isStrEqual(label, "commandId")) {
-    return 'chip::CommandId';
-  } else if (type == 'OCTET_STRING') {
-    return 'chip::ByteSpan';
-  } else {
-    const options = { 'hash' : {} };
-    return zclHelper.asUnderlyingZclType.call(this, type, options);
-  }
-}
-
 //  Endpoint-config specific helpers
 // these helpers are a Hot fix for the "GENERATED_FUNCTIONS" problem
 // They should be removed or replace once issue #4369 is resolved
 // These helpers only works within the endpoint_config iterator
 
 // List of all cluster with generated functions
-var endpointClusterWithInit =
-    [ 'Basic', 'Identify', 'Groups', 'Scenes', 'Occupancy Sensing', 'On/off', 'Level Control', 'Color Control', 'IAS Zone' ];
-var endpointClusterWithAttributeChanged = [ 'Identify', 'Door Lock' ];
+var endpointClusterWithInit = [
+  'Basic', 'Identify', 'Groups', 'Scenes', 'Occupancy Sensing', 'On/off', 'Level Control', 'Color Control', 'IAS Zone',
+  'Pump Configuration and Control'
+];
+var endpointClusterWithAttributeChanged = [ 'Identify', 'Door Lock', 'Pump Configuration and Control' ];
 var endpointClusterWithPreAttribute     = [ 'IAS Zone' ];
 var endpointClusterWithMessageSent      = [ 'IAS Zone' ];
 
@@ -359,6 +334,24 @@ function isStrEndsWith(str, substr)
   return str.endsWith(substr);
 }
 
+function asTypeLiteralSuffix(type)
+{
+  switch (type) {
+  case 'int32_t':
+    return 'L';
+  case 'int64_t':
+    return 'LL';
+  case 'uint16_t':
+    return 'U';
+  case 'uint32_t':
+    return 'UL';
+  case 'uint64_t':
+    return 'ULL';
+  default:
+    return '';
+  }
+}
+
 //
 // Module exports
 //
@@ -366,10 +359,10 @@ exports.asPrintFormat                                 = asPrintFormat;
 exports.asReadType                                    = asReadType;
 exports.asReadTypeLength                              = asReadTypeLength;
 exports.asValueIfNotPresent                           = asValueIfNotPresent;
-exports.asChipUnderlyingType                          = asChipUnderlyingType;
 exports.isFirstElement                                = isFirstElement;
 exports.user_cluster_has_enabled_manufacturer_command = user_cluster_has_enabled_manufacturer_command;
 exports.chip_endpoint_generated_functions             = chip_endpoint_generated_functions
 exports.chip_endpoint_cluster_list                    = chip_endpoint_cluster_list
 exports.isSigned                                      = ChipTypesHelper.isSigned;
 exports.isStrEndsWith                                 = isStrEndsWith;
+exports.asTypeLiteralSuffix                           = asTypeLiteralSuffix;
