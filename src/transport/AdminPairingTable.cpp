@@ -27,7 +27,7 @@
 namespace chip {
 namespace Transport {
 
-PersistentStorageDelegate * gStorage = nullptr;
+PersistentStorageDelegate * gStorage  = nullptr;
 AdminPairingTableDelegate * gDelegate = nullptr;
 
 CHIP_ERROR AdminPairingInfo::StoreIntoKVS()
@@ -42,8 +42,8 @@ CHIP_ERROR AdminPairingInfo::StoreIntoKVS()
     ReturnErrorOnFailure(GenerateKey(mAdmin, key, sizeof(key)));
 
     StorableAdminPairingInfo info;
-    info.mNodeId = Encoding::LittleEndian::HostSwap64(mNodeId);
-    info.mAdmin  = Encoding::LittleEndian::HostSwap16(mAdmin);
+    info.mNodeId   = Encoding::LittleEndian::HostSwap64(mNodeId);
+    info.mAdmin    = Encoding::LittleEndian::HostSwap16(mAdmin);
     info.mFabricId = Encoding::LittleEndian::HostSwap64(mFabricId);
     info.mVendorId = Encoding::LittleEndian::HostSwap16(mVendorId);
 
@@ -161,7 +161,8 @@ AdminPairingInfo * AdminPairingTable::FindAdmin(FabricId fabricId)
     {
         if (mStates[i].IsInitialized())
         {
-            ChipLogProgress(Discovery, "Looking at index %d with fabricID %llu nodeID %llu to see if it matches fabricId %llu.", i, mStates[i].GetFabricId(), mStates[i].GetNodeId(), fabricId);
+            ChipLogProgress(Discovery, "Looking at index %d with fabricID %llu nodeID %llu to see if it matches fabricId %llu.", i,
+                            mStates[i].GetFabricId(), mStates[i].GetNodeId(), fabricId);
         }
         if (mStates[i].IsInitialized() && mStates[i].GetFabricId() == fabricId)
         {
@@ -179,7 +180,9 @@ AdminPairingInfo * AdminPairingTable::FindAdmin(FabricId fabricId, NodeId nodeId
     {
         if (mStates[i].IsInitialized())
         {
-            ChipLogProgress(Discovery, "Looking at index %d with fabricID %llu nodeID %llu to see if it matches fabricId %llu nodeId %llu.", i, mStates[i].GetFabricId(), mStates[i].GetNodeId(), fabricId, nodeId);
+            ChipLogProgress(Discovery,
+                            "Looking at index %d with fabricID %llu nodeID %llu to see if it matches fabricId %llu nodeId %llu.", i,
+                            mStates[i].GetFabricId(), mStates[i].GetNodeId(), fabricId, nodeId);
         }
         if (mStates[i].IsInitialized() && mStates[i].GetFabricId() == fabricId && mStates[i].GetNodeId() == nodeId)
         {
@@ -197,10 +200,14 @@ AdminPairingInfo * AdminPairingTable::FindAdmin(FabricId fabricId, NodeId nodeId
     {
         if (mStates[i].IsInitialized())
         {
-            ChipLogProgress(Discovery, "Looking at index %d with fabricID %llu nodeID %llu vendorId %d to see if it matches fabricId %llu nodeId %llu vendorId %d.",
-                            i, mStates[i].GetFabricId(), mStates[i].GetNodeId(), mStates[i].GetVendorId(), fabricId, nodeId, vendorId);
+            ChipLogProgress(Discovery,
+                            "Looking at index %d with fabricID %llu nodeID %llu vendorId %d to see if it matches fabricId %llu "
+                            "nodeId %llu vendorId %d.",
+                            i, mStates[i].GetFabricId(), mStates[i].GetNodeId(), mStates[i].GetVendorId(), fabricId, nodeId,
+                            vendorId);
         }
-        if (mStates[i].IsInitialized() && mStates[i].GetFabricId() == fabricId && mStates[i].GetNodeId() == nodeId && mStates[i].GetVendorId() == vendorId)
+        if (mStates[i].IsInitialized() && mStates[i].GetFabricId() == fabricId && mStates[i].GetNodeId() == nodeId &&
+            mStates[i].GetVendorId() == vendorId)
         {
             ChipLogProgress(Discovery, "Found a match!");
             return &mStates[i];
@@ -221,7 +228,7 @@ void AdminPairingTable::Reset()
 CHIP_ERROR AdminPairingTable::Init(PersistentStorageDelegate * storage)
 {
     VerifyOrReturnError(storage != nullptr, CHIP_ERROR_INVALID_ARGUMENT);
-    gStorage  = storage;
+    gStorage = storage;
     ChipLogProgress(Discovery, "Init admin pairing table with server storage.");
     return CHIP_NO_ERROR;
 }
@@ -229,7 +236,7 @@ CHIP_ERROR AdminPairingTable::Init(PersistentStorageDelegate * storage)
 CHIP_ERROR AdminPairingTable::SetAdminPairingDelegate(AdminPairingTableDelegate * delegate)
 {
     VerifyOrReturnError(delegate != nullptr, CHIP_ERROR_INVALID_ARGUMENT);
-    gDelegate  = delegate;
+    gDelegate = delegate;
     ChipLogProgress(Discovery, "Set the admin pairing table delegate");
     return CHIP_NO_ERROR;
 }

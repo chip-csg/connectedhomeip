@@ -31,7 +31,7 @@ namespace Transport {
 typedef uint16_t AdminId;
 typedef uint64_t FabricId;
 
-static constexpr AdminId kUndefinedAdminId   = UINT16_MAX;
+static constexpr AdminId kUndefinedAdminId = UINT16_MAX;
 // static constexpr FabricId kUndefinedFabricId = UINT64_MAX;
 static constexpr uint16_t kUndefinedVendorId = UINT16_MAX;
 // KVS store is sensitive to length of key strings, based on the underlying

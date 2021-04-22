@@ -22,12 +22,12 @@
 
 #include "af.h"
 #include <app/Command.h>
+#include <app/server/Server.h>
 #include <app/util/attribute-storage.h>
 #include <platform/CHIPDeviceLayer.h>
 #include <support/CodeUtils.h>
 #include <support/logging/CHIPLogging.h>
 #include <transport/AdminPairingTable.h>
-#include <app/server/Server.h>
 
 #include "gen/af-structs.h"
 #include "gen/attribute-id.h"
@@ -70,9 +70,11 @@ EmberAfStatus writeFabric(FabricId fabricId, NodeId nodeId, uint16_t vendorId, i
     fabricDescriptor.NodeId   = nodeId;
     fabricDescriptor.VendorId = vendorId;
 
-    emberAfPrintln(EMBER_AF_PRINT_DEBUG, "OpCreds: Writing admin into attribute store at index %d: fabricId %" PRIX64
-                            ", nodeId %" PRIX64 " vendorId %" PRIX16, index, fabricId, nodeId, vendorId);
-    status =  writeFabricAttribute(0, attributeId, (uint8_t *) &fabricDescriptor, index);
+    emberAfPrintln(EMBER_AF_PRINT_DEBUG,
+                   "OpCreds: Writing admin into attribute store at index %d: fabricId %" PRIX64 ", nodeId %" PRIX64
+                   " vendorId %" PRIX16,
+                   index, fabricId, nodeId, vendorId);
+    status = writeFabricAttribute(0, attributeId, (uint8_t *) &fabricDescriptor, index);
     return status;
 }
 
@@ -81,11 +83,11 @@ CHIP_ERROR writeAdminsIntoFabricsListAttribute(void)
     emberAfPrintln(EMBER_AF_PRINT_DEBUG, "OpCreds: Call to writeAdminsIntoFabricsListAttribute");
 
     // Loop through admins
-    auto pairing = GetGlobalAdminPairingTable().cbegin();
+    auto pairing        = GetGlobalAdminPairingTable().cbegin();
     int32_t fabricIndex = 0;
     while (pairing != GetGlobalAdminPairingTable().cend())
     {
-        NodeId nodeId = pairing->GetNodeId();
+        NodeId nodeId     = pairing->GetNodeId();
         uint64_t fabricId = pairing->GetFabricId();
         uint16_t vendorId = pairing->GetVendorId();
 
@@ -94,9 +96,10 @@ CHIP_ERROR writeAdminsIntoFabricsListAttribute(void)
         {
             if (writeFabric(fabricId, nodeId, vendorId, fabricIndex) != EMBER_ZCL_STATUS_SUCCESS)
             {
-                emberAfPrintln(EMBER_AF_PRINT_DEBUG, "OpCreds: Failed to write admin with fabricId %" PRIX64 " in fabrics list", fabricId);
+                emberAfPrintln(EMBER_AF_PRINT_DEBUG, "OpCreds: Failed to write admin with fabricId %" PRIX64 " in fabrics list",
+                               fabricId);
             }
-            fabricIndex ++;
+            fabricIndex++;
         }
         pairing++;
     }
@@ -129,14 +132,18 @@ class OpCredsAdminPairingTableDelegate : public AdminPairingTableDelegate
     }
     void OnAdminRetrievedFromStorage(AdminId adminId, FabricId fabricId, NodeId nodeId) override
     {
-        emberAfPrintln(EMBER_AF_PRINT_DEBUG, "OpCreds: Admin %" PRIX16 " was retrieved from storage. FabricId %" PRIX64
-                                            ", NodeId %" PRIX64 ", VendorId %" PRIX64, adminId, fabricId, nodeId);
+        emberAfPrintln(EMBER_AF_PRINT_DEBUG,
+                       "OpCreds: Admin %" PRIX16 " was retrieved from storage. FabricId %" PRIX64 ", NodeId %" PRIX64
+                       ", VendorId %" PRIX64,
+                       adminId, fabricId, nodeId);
         writeAdminsIntoFabricsListAttribute();
     }
     void OnAdminPersistedToStorage(AdminId adminId, FabricId fabricId, NodeId nodeId) override
     {
-        emberAfPrintln(EMBER_AF_PRINT_DEBUG, "OpCreds: Admin %" PRIX16 " was persisted to storage. FabricId %" PRIX64
-                                            ", NodeId %" PRIX64 ", VendorId %" PRIX64, adminId, fabricId, nodeId);
+        emberAfPrintln(EMBER_AF_PRINT_DEBUG,
+                       "OpCreds: Admin %" PRIX16 " was persisted to storage. FabricId %" PRIX64 ", NodeId %" PRIX64
+                       ", VendorId %" PRIX64,
+                       adminId, fabricId, nodeId);
         writeAdminsIntoFabricsListAttribute();
     }
 };
@@ -180,7 +187,7 @@ bool emberAfOperationalCredentialsClusterSetFabricCallback(chip::app::Command * 
 {
     emberAfPrintln(EMBER_AF_PRINT_DEBUG, "OpCreds: SetFabric with vendorId %d", VendorId);
 
-    EmberAfStatus status = EMBER_ZCL_STATUS_SUCCESS;
+    EmberAfStatus status   = EMBER_ZCL_STATUS_SUCCESS;
     EmberStatus sendStatus = EMBER_SUCCESS;
     CHIP_ERROR err;
 
@@ -195,8 +202,9 @@ bool emberAfOperationalCredentialsClusterSetFabricCallback(chip::app::Command * 
     VerifyOrExit(err == CHIP_NO_ERROR, status = EMBER_ZCL_STATUS_FAILURE);
 
     // Return FabricId
-    emberAfFillExternalBuffer((ZCL_CLUSTER_SPECIFIC_COMMAND | ZCL_FRAME_CONTROL_SERVER_TO_CLIENT), ZCL_OPERATIONAL_CREDENTIALS_CLUSTER_ID,
-                              ZCL_SET_FABRIC_RESPONSE_COMMAND_ID, "y", emberAfCurrentCommand()->source);
+    emberAfFillExternalBuffer((ZCL_CLUSTER_SPECIFIC_COMMAND | ZCL_FRAME_CONTROL_SERVER_TO_CLIENT),
+                              ZCL_OPERATIONAL_CREDENTIALS_CLUSTER_ID, ZCL_SET_FABRIC_RESPONSE_COMMAND_ID, "y",
+                              emberAfCurrentCommand()->source);
     sendStatus = emberAfSendResponse();
 
 exit:
@@ -215,7 +223,7 @@ exit:
 
 bool emberAfOperationalCredentialsClusterUpdateFabricLabelCallback(chip::app::Command * commandObj, uint8_t * Label)
 {
-    emberAfPrintln(EMBER_AF_PRINT_DEBUG, "OpCreds: UpdateFabricLabel to %s", (char*) Label);
+    emberAfPrintln(EMBER_AF_PRINT_DEBUG, "OpCreds: UpdateFabricLabel to %s", (char *) Label);
 
     EmberAfStatus status = EMBER_ZCL_STATUS_FAILURE;
     emberAfSendImmediateDefaultResponse(status);

@@ -20,5 +20,4 @@
 #include <lib/core/PeerId.h>
 #include <transport/AdminPairingTable.h>
 
-
 CHIP_ERROR writeAdminsIntoFabricsListAttribute();

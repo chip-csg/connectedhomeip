@@ -38,7 +38,6 @@
 #include <transport/AdminPairingTable.h>
 #include <transport/SecureMessageCodec.h>
 #include <transport/TransportMgr.h>
-#include <transport/AdminPairingTable.h>
 
 #include <inttypes.h>
 
@@ -443,7 +442,6 @@ void SecureSessionMgr::SecureMessageDispatch(const PacketHeader & packetHeader, 
             ChipLogProgress(Inet, "Setting nodeID %" PRIX64 " on admin.", admin->GetNodeId());
             modifiedAdmin = 1;
         }
-
     }
 
     if (packetHeader.GetSourceNodeId().HasValue())
