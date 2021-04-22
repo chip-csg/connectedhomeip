@@ -443,7 +443,7 @@ void SecureSessionMgr::SecureMessageDispatch(const PacketHeader & packetHeader, 
             ChipLogProgress(Inet, "Setting nodeID %" PRIX64 " on admin.", admin->GetNodeId());
             modifiedAdmin = 1;
         }
-        
+
     }
 
     if (packetHeader.GetSourceNodeId().HasValue())

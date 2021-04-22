@@ -371,7 +371,7 @@
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, DISPATCH_TIME_NOW), dispatch_get_main_queue(), ^{
         [self->_deviceList refreshDeviceList];
         [self retrieveAndSendWifiCredentials];
-        
+
         CHIPOperationalCredentials *opCreds = [[CHIPOperationalCredentials alloc] initWithDevice:CHIPGetPairedDevice()
                                                                                         endpoint:0
                                                                                            queue:dispatch_get_main_queue()];
@@ -384,8 +384,8 @@
                 CHIPSetDomainValueForKey(kCHIPToolDefaultsDomain, kFabricIdKey, fabricID);
             }
         }];
-        
-        
+
+
     });
 }
 

@@ -143,7 +143,7 @@ else
             break;
         }
         case ZCL_COMMISSIONING_COMPLETE_COMMAND_ID: {
-        
+
         // TODO(#5098) We should pass the Command Object and EndpointId to the cluster callbacks.
         emberAfGeneralCommissioningClusterCommissioningCompleteCallback(apCommandObj);
                     break;

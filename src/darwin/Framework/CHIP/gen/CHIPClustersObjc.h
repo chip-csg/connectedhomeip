@@ -44,7 +44,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Application Basic
- *    
+ *
  */
 @interface CHIPApplicationBasic : CHIPCluster
 
@@ -64,7 +64,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Barrier Control
- *    
+ *
  */
 @interface CHIPBarrierControl : CHIPCluster
 
@@ -83,7 +83,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Basic
- *    
+ *
  */
 @interface CHIPBasic : CHIPCluster
 
@@ -117,7 +117,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Binding
- *    
+ *
  */
 @interface CHIPBinding : CHIPCluster
 
@@ -132,7 +132,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Color Control
- *    
+ *
  */
 @interface CHIPColorControl : CHIPCluster
 
@@ -232,7 +232,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Descriptor
- *    
+ *
  */
 @interface CHIPDescriptor : CHIPCluster
 
@@ -249,7 +249,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Door Lock
- *    
+ *
  */
 @interface CHIPDoorLock : CHIPCluster
 
@@ -290,7 +290,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster General Commissioning
- *    
+ *
  */
 @interface CHIPGeneralCommissioning : CHIPCluster
 
@@ -308,7 +308,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Group Key Management
- *    
+ *
  */
 @interface CHIPGroupKeyManagement : CHIPCluster
 
@@ -323,7 +323,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Groups
- *    
+ *
  */
 @interface CHIPGroups : CHIPCluster
 
@@ -343,7 +343,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Identify
- *    
+ *
  */
 @interface CHIPIdentify : CHIPCluster
 
@@ -360,7 +360,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Level Control
- *    
+ *
  */
 @interface CHIPLevelControl : CHIPCluster
 
@@ -384,7 +384,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Low Power
- *    
+ *
  */
 @interface CHIPLowPower : CHIPCluster
 
@@ -398,7 +398,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Network Commissioning
- *    
+ *
  */
 @interface CHIPNetworkCommissioning : CHIPCluster
 
@@ -420,7 +420,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster On/off
- *    
+ *
  */
 @interface CHIPOnOff : CHIPCluster
 
@@ -439,7 +439,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Operational Credentials
- *    
+ *
  */
 @interface CHIPOperationalCredentials : CHIPCluster
 
@@ -456,7 +456,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Scenes
- *    
+ *
  */
 @interface CHIPScenes : CHIPCluster
 
@@ -481,7 +481,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Cluster Temperature Measurement
- *    
+ *
  */
 @interface CHIPTemperatureMeasurement : CHIPCluster
 

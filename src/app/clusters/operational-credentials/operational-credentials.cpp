@@ -56,7 +56,7 @@ EmberAfStatus writeFabricAttribute(uint8_t endpoint, AttributeId attributeId, ui
     // Since the first 2 bytes of the attribute are used to store the number of elements, elements indexing starts
     // at 1. In order to hide this to the rest of the code of this file, the element index is incremented by 1 here.
     // This also allows calling writeAttribute() with no index arg to mean "write the length".
-    
+
     return emAfReadOrWriteAttribute(&record, NULL, buffer, 0, true, index + 1);
 }
 
@@ -70,7 +70,7 @@ EmberAfStatus writeFabric(FabricId fabricId, NodeId nodeId, uint16_t vendorId, i
     fabricDescriptor.NodeId   = nodeId;
     fabricDescriptor.VendorId = vendorId;
 
-    emberAfPrintln(EMBER_AF_PRINT_DEBUG, "OpCreds: Writing admin into attribute store at index %d: fabricId %" PRIX64 
+    emberAfPrintln(EMBER_AF_PRINT_DEBUG, "OpCreds: Writing admin into attribute store at index %d: fabricId %" PRIX64
                             ", nodeId %" PRIX64 " vendorId %" PRIX16, index, fabricId, nodeId, vendorId);
     status =  writeFabricAttribute(0, attributeId, (uint8_t *) &fabricDescriptor, index);
     return status;
@@ -84,7 +84,7 @@ CHIP_ERROR writeAdminsIntoFabricsListAttribute(void)
     auto pairing = GetGlobalAdminPairingTable().cbegin();
     int32_t fabricIndex = 0;
     while (pairing != GetGlobalAdminPairingTable().cend())
-    { 
+    {
         NodeId nodeId = pairing->GetNodeId();
         uint64_t fabricId = pairing->GetFabricId();
         uint16_t vendorId = pairing->GetVendorId();
@@ -154,7 +154,7 @@ bool emberAfOperationalCredentialsClusterRemoveFabricCallback(chip::app::Command
                                                               chip::NodeId nodeId, uint16_t vendorId)
 {
     emberAfPrintln(EMBER_AF_PRINT_DEBUG, "OpCreds: RemoveFabric"); // TODO: Generate emberAfFabricClusterPrintln
-    
+
     EmberAfStatus status = EMBER_ZCL_STATUS_SUCCESS;
     AdminPairingInfo * admin;
     AdminId adminId;
@@ -216,7 +216,7 @@ exit:
 bool emberAfOperationalCredentialsClusterUpdateFabricLabelCallback(chip::app::Command * commandObj, uint8_t * Label)
 {
     emberAfPrintln(EMBER_AF_PRINT_DEBUG, "OpCreds: UpdateFabricLabel to %s", (char*) Label);
-    
+
     EmberAfStatus status = EMBER_ZCL_STATUS_FAILURE;
     emberAfSendImmediateDefaultResponse(status);
     return true;

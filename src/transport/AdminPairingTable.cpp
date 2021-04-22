@@ -197,7 +197,7 @@ AdminPairingInfo * AdminPairingTable::FindAdmin(FabricId fabricId, NodeId nodeId
     {
         if (mStates[i].IsInitialized())
         {
-            ChipLogProgress(Discovery, "Looking at index %d with fabricID %llu nodeID %llu vendorId %d to see if it matches fabricId %llu nodeId %llu vendorId %d.", 
+            ChipLogProgress(Discovery, "Looking at index %d with fabricID %llu nodeID %llu vendorId %d to see if it matches fabricId %llu nodeId %llu vendorId %d.",
                             i, mStates[i].GetFabricId(), mStates[i].GetNodeId(), mStates[i].GetVendorId(), fabricId, nodeId, vendorId);
         }
         if (mStates[i].IsInitialized() && mStates[i].GetFabricId() == fabricId && mStates[i].GetNodeId() == nodeId && mStates[i].GetVendorId() == vendorId)
