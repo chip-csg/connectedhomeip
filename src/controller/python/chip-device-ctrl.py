@@ -88,7 +88,6 @@ class RPCResponseKeyEnum(Enum):
 
 # The exceptions for CHIP Device Controller CLI
 
-
 class ChipDevCtrlException(exceptions.ChipStackException):
     pass
 
@@ -733,6 +732,7 @@ class DeviceMgrCmd(Cmd):
 
     def emptyline(self):
         pass
+
 
 ###  Additions needed by the Test Harness Tool ###
 # TODO: Implement a custom device manager instead of using the existing manager object
