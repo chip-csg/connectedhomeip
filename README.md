@@ -1,4 +1,4 @@
-# Connected Home over IP
+# Connected Home over IP (testing permissions)
 
 ![Builds](https://github.com/project-chip/connectedhomeip/workflows/Builds/badge.svg)
 
