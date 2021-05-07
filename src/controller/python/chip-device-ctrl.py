@@ -41,7 +41,6 @@ from cmd import Cmd
 from chip.ChipBleUtility import FAKE_CONN_OBJ_VALUE
 from chip.setup_payload import SetupPayload
 from xmlrpc.server import SimpleXMLRPCServer
-from typing import Optional
 
 # Extend sys.path with one or more directories, relative to the location of the
 # running script, in which the chip package might be found .  This makes it
