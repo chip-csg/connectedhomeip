@@ -627,17 +627,24 @@ def ble_scan():
     #TODO: Return a list of available devices
     return "Scan started"
 
-def connect(type: string,  descriminator: int, pin_code: int, node_id: int) -> None:
-    line: string =  "-"+ type + " " + str(descriminator) + " "  + str(pin_code) + " "+ str(node_id)
+def ble_connect(descriminator: int, pin_code: int, node_id: int) -> None:
+    line: string =  "-ble " + str(descriminator) + " "  + str(pin_code) + " "+ str(node_id)
     print("command received: "+ line)
     device_manager.do_connect(line)
-    return "Attempting to connect to the device."
+    return "Attempting to connect to the device using ble."
+
+def ip_connect(ip_address: int, pin_code: int, node_id: int) -> None:
+    line: string =  "-ble " + str(ip_address) + " "  + str(pin_code) + " "+ str(node_id)
+    print("command received: "+ line)
+    device_manager.do_connect(line)
+    return "Attempting to connect to the device using ip address."
 
 def start_rpc_server():
     with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
         server.register_function(echo_alive)
         server.register_function(ble_scan)
-        server.register_function(connect)
+        server.register_function(ble_connect)
+        server.register_function(ip_connect)
         server.register_multicall_functions()
         print('Serving XML-RPC on localhost port 5000')
         try:
