@@ -628,13 +628,15 @@ def ble_scan():
     return "Scan started"
 
 def ble_connect(descriminator: int, pin_code: int, node_id: int) -> None:
-    line: string =  "-ble " + str(descriminator) + " "  + str(pin_code) + " "+ str(node_id)
+    BLE_TYPE = "-ble "
+    line: string =  BLE_TYPE + str(descriminator) + " "  + str(pin_code) + " "+ str(node_id)
     print("command received: "+ line)
     device_manager.do_connect(line)
     return "Attempting to connect to the device using ble."
 
 def ip_connect(ip_address: int, pin_code: int, node_id: int) -> None:
-    line: string =  "-ble " + str(ip_address) + " "  + str(pin_code) + " "+ str(node_id)
+    IP_TYPE = "-ip "
+    line: string =  IP_TYPE + str(ip_address) + " "  + str(pin_code) + " "+ str(node_id)
     print("command received: "+ line)
     device_manager.do_connect(line)
     return "Attempting to connect to the device using ip address."
