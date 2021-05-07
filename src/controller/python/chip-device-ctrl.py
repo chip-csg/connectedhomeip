@@ -41,6 +41,7 @@ from cmd import Cmd
 from chip.ChipBleUtility import FAKE_CONN_OBJ_VALUE
 from chip.setup_payload import SetupPayload
 from xmlrpc.server import SimpleXMLRPCServer
+from typing import Optional
 
 # Extend sys.path with one or more directories, relative to the location of the
 # running script, in which the chip package might be found .  This makes it
@@ -627,10 +628,17 @@ def ble_scan():
     #TODO: Return a list of available devices
     return "Scan started"
 
+def connect(type: string,  descriminator: int, pin_code: int, node_id: int) -> None:
+    line: string =  "-"+ type + " " + str(descriminator) + " "  + str(pin_code) + " "+ str(node_id)
+    print("command received: "+ line)
+    device_manager.do_connect(line)
+    return "Attempting to connect to the device."
+
 def start_rpc_server():
     with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
         server.register_function(echo_alive)
         server.register_function(ble_scan)
+        server.register_function(connect)
         server.register_multicall_functions()
         print('Serving XML-RPC on localhost port 5000')
         try:
