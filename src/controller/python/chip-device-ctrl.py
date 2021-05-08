@@ -627,7 +627,7 @@ def ble_scan():
     #TODO: Return a list of available devices
     return "Scan started"
 
-def ble_connect(descriminator: int, pin_code: int, node_id: int) -> None:
+def ble_connect(descriminator: int, pin_code: int, node_id: int) -> string:
     try:
         device_manager.devCtrl.ConnectBLE(descriminator, pin_code, node_id)
         return "Attempting to connect to the device using ble."
@@ -636,7 +636,7 @@ def ble_connect(descriminator: int, pin_code: int, node_id: int) -> None:
         return str(ex)
 
 
-def ip_connect(ip_address: string, pin_code: int, node_id: int) -> None:
+def ip_connect(ip_address: string, pin_code: int, node_id: int) -> string:
     try:
         device_manager.devCtrl.ConnectIP(ip_address.encode("utf-8"), pin_code, node_id)
         return "Attempting to connect to the device using ip address."
