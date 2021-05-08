@@ -633,7 +633,7 @@ def ble_connect(descriminator: int, pin_code: int, node_id: int) -> string:
         return "Attempting to connect to the device using ble."
     except exceptions.ChipStackException as ex:
         print(str(ex))
-        return str(ex)
+        return ex
 
 
 def ip_connect(ip_address: string, pin_code: int, node_id: int) -> string:
@@ -642,7 +642,7 @@ def ip_connect(ip_address: string, pin_code: int, node_id: int) -> string:
         return "Attempting to connect to the device using ip address."
     except exceptions.ChipStackException as ex:
         print(str(ex))
-        return str(ex)
+        return ex
 
 def start_rpc_server():
     with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
