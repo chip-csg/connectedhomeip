@@ -628,18 +628,21 @@ def ble_scan():
     return "Scan started"
 
 def ble_connect(descriminator: int, pin_code: int, node_id: int) -> None:
-    BLE_TYPE = "-ble "
-    line: string =  BLE_TYPE + str(descriminator) + " "  + str(pin_code) + " "+ str(node_id)
-    print("command received: "+ line)
-    device_manager.do_connect(line)
-    return "Attempting to connect to the device using ble."
+    try:
+        device_manager.devCtrl.ConnectBLE(descriminator, pin_code, node_id)
+        return "Attempting to connect to the device using ble."
+    except exceptions.ChipStackException as ex:
+        print(str(ex))
+        return str(ex)
 
-def ip_connect(ip_address: int, pin_code: int, node_id: int) -> None:
-    IP_TYPE = "-ip "
-    line: string =  IP_TYPE + str(ip_address) + " "  + str(pin_code) + " "+ str(node_id)
-    print("command received: "+ line)
-    device_manager.do_connect(line)
-    return "Attempting to connect to the device using ip address."
+
+def ip_connect(ip_address: string, pin_code: int, node_id: int) -> None:
+    try:
+        device_manager.devCtrl.ConnectIP(ip_address.encode("utf-8"), pin_code, node_id)
+        return "Attempting to connect to the device using ip address."
+    except exceptions.ChipStackException as ex:
+        print(str(ex))
+        return str(ex)
 
 def start_rpc_server():
     with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
