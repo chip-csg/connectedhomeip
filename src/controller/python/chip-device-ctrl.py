@@ -41,6 +41,8 @@ from cmd import Cmd
 from chip.ChipBleUtility import FAKE_CONN_OBJ_VALUE
 from chip.setup_payload import SetupPayload
 from xmlrpc.server import SimpleXMLRPCServer
+from enum import Enum
+from typing import Any, Dict,Optional
 
 # Extend sys.path with one or more directories, relative to the location of the
 # running script, in which the chip package might be found .  This makes it
@@ -68,6 +70,11 @@ if platform.system() == 'Darwin':
     from chip.ChipCoreBluetoothMgr import CoreBluetoothManager as BleManager
 elif sys.platform.startswith('linux'):
     from chip.ChipBluezMgr import BluezManager as BleManager
+
+
+class StatusCodeEnum(Enum):
+    SUCCESS = 0
+    FAILED =  1
 
 # The exceptions for CHIP Device Controller CLI
 
@@ -630,19 +637,19 @@ def ble_scan():
 def ble_connect(descriminator: int, pin_code: int, node_id: int) -> string:
     try:
         device_manager.devCtrl.ConnectBLE(descriminator, pin_code, node_id)
-        return "Attempting to connect to the device using ble."
+        return __get_response_dict(StatusCodeEnum.SUCCESS)
     except exceptions.ChipStackException as ex:
         print(str(ex))
-        return ex
+        return __get_response_dict(StatusCodeEnum.FAILED, str(ex))
 
 
 def ip_connect(ip_address: string, pin_code: int, node_id: int) -> string:
     try:
         device_manager.devCtrl.ConnectIP(ip_address.encode("utf-8"), pin_code, node_id)
-        return "Attempting to connect to the device using ip address."
+        return __get_response_dict(StatusCodeEnum.SUCCESS)
     except exceptions.ChipStackException as ex:
         print(str(ex))
-        return ex
+        return __get_response_dict(StatusCodeEnum.FAILED, str(ex))
 
 def start_rpc_server():
     with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
@@ -657,6 +664,12 @@ def start_rpc_server():
         except KeyboardInterrupt:
             print("\nKeyboard interrupt received, exiting.")
             sys.exit(0)
+
+def __get_response_dict(status: StatusCodeEnum, error:Optional[str]=None) -> Dict [Any, Any]:
+    if error is not None:
+        return { "status" : status.value, "error" :f'Unable to connect due to exception {error}' }
+    else:
+        return { "status" : status.value}
 
 ######--------------------------------------------------######
 
