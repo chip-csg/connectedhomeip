@@ -636,20 +636,26 @@ def ble_scan():
 
 def ble_connect(descriminator: int, pin_code: int, node_id: int) -> string:
     try:
+        __check_supported_os()
         device_manager.devCtrl.ConnectBLE(descriminator, pin_code, node_id)
-        return __get_response_dict(StatusCodeEnum.SUCCESS)
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS)
     except exceptions.ChipStackException as ex:
         print(str(ex))
-        return __get_response_dict(StatusCodeEnum.FAILED, str(ex))
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 
 def ip_connect(ip_address: string, pin_code: int, node_id: int) -> string:
     try:
+        __check_supported_os()
         device_manager.devCtrl.ConnectIP(ip_address.encode("utf-8"), pin_code, node_id)
-        return __get_response_dict(StatusCodeEnum.SUCCESS)
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS)
     except exceptions.ChipStackException as ex:
         print(str(ex))
-        return __get_response_dict(StatusCodeEnum.FAILED, str(ex))
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def start_rpc_server():
     with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
@@ -665,11 +671,22 @@ def start_rpc_server():
             print("\nKeyboard interrupt received, exiting.")
             sys.exit(0)
 
-def __get_response_dict(status: StatusCodeEnum, error:Optional[str]=None) -> Dict [Any, Any]:
+def __get_response_dict(status: StatusCodeEnum, result: Optional[Dict[Any, Any]] = None, error:Optional[str] = None) -> Dict [Any, Any]:
     if error is not None:
         return { "status" : status.value, "error" :f'Unable to connect due to exception {error}' }
     else:
-        return { "status" : status.value}
+        if result is not None:
+            return { "status" : status.value, "result": result}
+        else:
+            return { "status" : status.value}
+
+def __check_supported_os()-> bool:
+    if platform.system() == 'Darwin':
+        raise Exception(platform.system() + " not supported")
+    elif sys.platform.startswith('linux'):
+        return True
+
+    raise Exception("OS Not Supported")
 
 ######--------------------------------------------------######
 
