@@ -41,6 +41,8 @@ from cmd import Cmd
 from chip.ChipBleUtility import FAKE_CONN_OBJ_VALUE
 from chip.setup_payload import SetupPayload
 from xmlrpc.server import SimpleXMLRPCServer
+from enum import Enum
+from typing import Any, Dict,Optional
 
 # Extend sys.path with one or more directories, relative to the location of the
 # running script, in which the chip package might be found .  This makes it
@@ -617,15 +619,61 @@ class DeviceMgrCmd(Cmd):
 device_manager = DeviceMgrCmd(rendezvousAddr=None,
                              controllerNodeId=0, bluetoothAdapter=0)
 
+
 # CHIP commands needed by the Harness Tool
 def echo_alive(message):
     print(message)
     return message
 
 def ble_scan():
-    device_manager.do_blescan("")
-    #TODO: Return a list of available devices
-    return "Scan started"
+    try:
+        __check_supported_os()
+        device_manager.do_blescan("")
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = __get_peripheral_list())
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
+def __get_peripheral_list() -> Dict[Any, Any]:
+    device_list = []
+    for device in device_manager.bleMgr.peripheral_list:
+        device_detail = {}
+        device_detail['name'] = str(device.Name)
+        device_detail['id'] = str(device.device_id)
+        device_detail['rssi'] = str(device.RSSI)
+        device_detail['address'] = str(device.Address)
+       
+        devIdInfo = device_manager.bleMgr.get_peripheral_devIdInfo(device)
+        if devIdInfo != None:
+            device_detail['pairing_state'] = devIdInfo.pairingState
+            device_detail['descriminator'] = devIdInfo.discriminator
+            device_detail['vendor_id'] = devIdInfo.vendorId
+            device_detail['product_id'] = devIdInfo.productId
+        
+        if device.ServiceData:
+            for advuuid in device.ServiceData:
+                device_detail['adv_uuid'] = str(advuuid)
+        device_list.append(device_detail)
+    return device_list
+
+def ble_connect(descriminator: int, pin_code: int, node_id: int) -> string:
+    try:
+        __check_supported_os()
+        device_manager.devCtrl.ConnectBLE(descriminator, pin_code, node_id)
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+    except exceptions.ChipStackException as ex:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
+def ip_connect(ip_address: string, pin_code: int, node_id: int) -> string:
+    try:
+        __check_supported_os()
+        device_manager.devCtrl.ConnectIP(ip_address.encode("utf-8"), pin_code, node_id)
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+    except exceptions.ChipStackException as ex:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def start_rpc_server():
     with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
