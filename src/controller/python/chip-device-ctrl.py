@@ -76,6 +76,11 @@ class StatusCodeEnum(Enum):
     SUCCESS = 0
     FAILED =  1
 
+class RPCResponseKeyEnum(Enum):
+    STATUS = "status"
+    RESULT = "result"
+    ERROR  = "error"
+
 # The exceptions for CHIP Device Controller CLI
 
 
@@ -634,7 +639,7 @@ def ble_scan():
     #TODO: Return a list of available devices
     return "Scan started"
 
-def ble_connect(discriminator: int, pin_code: int, node_id: int) -> string:
+def ble_connect(discriminator: int, pin_code: int, node_id: int) -> Dict[str, Any]:
     try:
         __check_supported_os()
         device_manager.devCtrl.ConnectBLE(discriminator, pin_code, node_id)
@@ -646,7 +651,7 @@ def ble_connect(discriminator: int, pin_code: int, node_id: int) -> string:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 
-def ip_connect(ip_address: string, pin_code: int, node_id: int) -> string:
+def ip_connect(ip_address: string, pin_code: int, node_id: int) -> Dict[str, Any]:
     try:
         __check_supported_os()
         device_manager.devCtrl.ConnectIP(ip_address.encode("utf-8"), pin_code, node_id)
@@ -672,13 +677,7 @@ def start_rpc_server():
             sys.exit(0)
 
 def __get_response_dict(status: StatusCodeEnum, result: Optional[Dict[Any, Any]] = None, error:Optional[str] = None) -> Dict [Any, Any]:
-    if error is not None:
-        return { "status" : status.value, "error" :f'Unable to connect due to exception {error}' }
-    else:
-        if result is not None:
-            return { "status" : status.value, "result": result}
-        else:
-            return { "status" : status.value}
+    return { RPCResponseKeyEnum.STATUS.value : status.value, RPCResponseKeyEnum.RESULT.value : result, RPCResponseKeyEnum.ERROR.value : error }
 
 def __check_supported_os()-> bool:
     if platform.system() == 'Darwin':
