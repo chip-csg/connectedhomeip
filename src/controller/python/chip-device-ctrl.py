@@ -71,6 +71,11 @@ if platform.system() == 'Darwin':
 elif sys.platform.startswith('linux'):
     from chip.ChipBluezMgr import BluezManager as BleManager
 
+
+class StatusCodeEnum(Enum):
+    SUCCESS = 0
+    FAILED =  1
+
 # The exceptions for CHIP Device Controller CLI
 
 
@@ -625,10 +630,11 @@ def echo_alive(message):
     print(message)
     return message
 
-def ble_scan():
+def ble_scan() -> Dict[Any, Any]:
     try:
         __check_supported_os()
         device_manager.do_blescan("")
+        
         return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = __get_peripheral_list())
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
@@ -636,29 +642,27 @@ def ble_scan():
 def __get_peripheral_list() -> Dict[Any, Any]:
     device_list = []
     for device in device_manager.bleMgr.peripheral_list:
-        device_detail = {}
-        device_detail['name'] = str(device.Name)
-        device_detail['id'] = str(device.device_id)
-        device_detail['rssi'] = str(device.RSSI)
-        device_detail['address'] = str(device.Address)
-       
+        device_detail = {}       
         devIdInfo = device_manager.bleMgr.get_peripheral_devIdInfo(device)
         if devIdInfo != None:
+            device_detail['name'] = str(device.Name)
+            device_detail['id'] = str(device.device_id)
+            device_detail['rssi'] = str(device.RSSI)
+            device_detail['address'] = str(device.Address)
             device_detail['pairing_state'] = devIdInfo.pairingState
-            device_detail['descriminator'] = devIdInfo.discriminator
+            device_detail['discriminator'] = devIdInfo.discriminator
             device_detail['vendor_id'] = devIdInfo.vendorId
             device_detail['product_id'] = devIdInfo.productId
-        
-        if device.ServiceData:
-            for advuuid in device.ServiceData:
-                device_detail['adv_uuid'] = str(advuuid)
-        device_list.append(device_detail)
+            if device.ServiceData:
+                for advuuid in device.ServiceData:
+                    device_detail['adv_uuid'] = str(advuuid)
+            device_list.append(device_detail)
     return device_list
 
-def ble_connect(descriminator: int, pin_code: int, node_id: int) -> string:
+def ble_connect(discriminator: int, pin_code: int, node_id: int) -> string:
     try:
         __check_supported_os()
-        device_manager.devCtrl.ConnectBLE(descriminator, pin_code, node_id)
+        device_manager.devCtrl.ConnectBLE(discriminator, pin_code, node_id)
         return __get_response_dict(status = StatusCodeEnum.SUCCESS)
     except exceptions.ChipStackException as ex:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
@@ -676,9 +680,12 @@ def ip_connect(ip_address: string, pin_code: int, node_id: int) -> string:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def start_rpc_server():
+
     with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
         server.register_function(echo_alive)
         server.register_function(ble_scan)
+        server.register_function(ble_connect)
+        server.register_function(ip_connect)
         server.register_multicall_functions()
         print('Serving XML-RPC on localhost port 5000')
         try:
@@ -686,6 +693,23 @@ def start_rpc_server():
         except KeyboardInterrupt:
             print("\nKeyboard interrupt received, exiting.")
             sys.exit(0)
+
+def __get_response_dict(status: StatusCodeEnum, result: Optional[Dict[Any, Any]] = None, error:Optional[str] = None) -> Dict [Any, Any]:
+    if error is not None:
+        return { "status" : status.value, "error" :f'exception {error}' }
+    else:
+        if result is not None:
+            return { "status" : status.value, "result": result}
+        else:
+            return { "status" : status.value}
+
+def __check_supported_os()-> bool:
+    if platform.system() == 'Darwin':
+        raise Exception(platform.system() + " not supported")
+    elif sys.platform.startswith('linux'):
+        return True
+
+    raise Exception("OS Not Supported")
 
 ######--------------------------------------------------######
 
