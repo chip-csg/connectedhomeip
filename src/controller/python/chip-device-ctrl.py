@@ -634,10 +634,10 @@ def ble_scan():
     #TODO: Return a list of available devices
     return "Scan started"
 
-def ble_connect(descriminator: int, pin_code: int, node_id: int) -> string:
+def ble_connect(discriminator: int, pin_code: int, node_id: int) -> string:
     try:
         __check_supported_os()
-        device_manager.devCtrl.ConnectBLE(descriminator, pin_code, node_id)
+        device_manager.devCtrl.ConnectBLE(discriminator, pin_code, node_id)
         return __get_response_dict(status = StatusCodeEnum.SUCCESS)
     except exceptions.ChipStackException as ex:
         print(str(ex))
