@@ -106,6 +106,8 @@ class SetupPayload:
                    c_int32,
                    [c_uint32, c_uint16, c_uint16, c_uint16, uint8_t, uint8_t])
 
+######----------------------------------------------------------------------------------------######
+
     def Dictionary(self):
         payload_dict = {}
         attributes_array = self.attributes + self.vendor_attributes
