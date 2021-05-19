@@ -332,7 +332,7 @@ public:
     void SetDevicePairingDelegate(DevicePairingDelegate * pairingDelegate) { mPairingDelegate = pairingDelegate; }
 
     CHIP_ERROR Shutdown() override;
-
+    PASESession *GetPASESession();
     // ----- Connection Management -----
     /**
      * @brief
