@@ -83,6 +83,8 @@ CHIP_ERROR pychip_DeviceController_DeleteDeviceController(chip::Controller::Devi
 CHIP_ERROR
 pychip_DeviceController_GetAddressAndPort(chip::Controller::DeviceCommissioner * devCtrl, chip::NodeId nodeId, char * outAddress,
                                           uint64_t maxAddressLen, uint16_t * outPort);
+// CSG
+CHIP_ERROR pychip_DeviceController_GetPASEData();
 
 // Rendezvous
 CHIP_ERROR pychip_DeviceController_ConnectBLE(chip::Controller::DeviceCommissioner * devCtrl, uint16_t discriminator,
@@ -201,14 +203,28 @@ void pychip_DeviceController_SetLogFilter(uint8_t category)
 #endif
 }
 
+CHIP_ERROR pychip_DeviceController_GetPASEData()
+{
+    //error = pychip_DeviceController_ConnectBLE(devCtrl, discriminator, set)
+    return 0;
+}
+
 CHIP_ERROR pychip_DeviceController_ConnectBLE(chip::Controller::DeviceCommissioner * devCtrl, uint16_t discriminator,
                                               uint32_t setupPINCode, chip::NodeId nodeid)
 {
+
+    // void *pase_session = (void *)devCtrl->GetPASESession();
+    // pase_session = nullptr_t;
+    
+    ChipLogProgress(Discovery, "Hello from the other side!");
+
+
     return devCtrl->PairDevice(nodeid,
                                chip::RendezvousParameters()
                                    .SetPeerAddress(Transport::PeerAddress(Transport::Type::kBle))
                                    .SetSetupPINCode(setupPINCode)
                                    .SetDiscriminator(discriminator));
+
 }
 
 CHIP_ERROR pychip_DeviceController_ConnectIP(chip::Controller::DeviceCommissioner * devCtrl, const char * peerAddrStr,

@@ -148,10 +148,20 @@ class ChipDeviceController(object):
 
     def ConnectBLE(self, discriminator, setupPinCode, nodeid):
         self.state = DCState.RENDEZVOUS_ONGOING
-        return self._ChipStack.CallAsync(
+        result = self._ChipStack.CallAsync(
             lambda: self._dmLib.pychip_DeviceController_ConnectBLE(
                 self.devCtrl, discriminator, setupPinCode, nodeid)
         )
+        
+        print("####Calling chip stack get pase")
+
+        res =  self._ChipStack.Call(
+        lambda: self._dmLib.pychip_DeviceController_GetPASEData())
+        print("######Other side returned: " + str(res))
+        return res
+
+
+    # def ConnectBLEWithPASE(self)
 
     def CloseBLEConnection(self):
         return self._ChipStack.Call(
@@ -273,6 +283,9 @@ class ChipDeviceController(object):
             self._dmLib.pychip_DeviceController_DeleteDeviceController.argtypes = [
                 c_void_p]
             self._dmLib.pychip_DeviceController_DeleteDeviceController.restype = c_uint32
+
+            self._dmLib.pychip_DeviceController_GetPASEData.argtypes = []
+            self._dmLib.pychip_DeviceController_GetPASEData.restype = c_uint32
 
             self._dmLib.pychip_DeviceController_ConnectBLE.argtypes = [
                 c_void_p, c_uint16, c_uint32, c_uint64]
