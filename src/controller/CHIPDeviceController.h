@@ -375,7 +375,7 @@ public:
     CHIP_ERROR Init(NodeId localDeviceId, CommissionerInitParams params);
 
     CHIP_ERROR Shutdown() override;
-
+    PASESession *GetPASESession();
     // ----- Connection Management -----
     /**
      * @brief

@@ -806,6 +806,11 @@ CHIP_ERROR DeviceCommissioner::Shutdown()
     return CHIP_NO_ERROR;
 }
 
+PASESession *DeviceCommissioner::GetPASESession()
+{
+    return &mPairingSession;
+}
+
 CHIP_ERROR DeviceCommissioner::PairDevice(NodeId remoteDeviceId, RendezvousParameters & params)
 {
     CHIP_ERROR err                     = CHIP_NO_ERROR;
