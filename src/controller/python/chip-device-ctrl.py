@@ -70,7 +70,6 @@ if platform.system() == 'Darwin':
 elif sys.platform.startswith('linux'):
     from chip.ChipBluezMgr import BluezManager as BleManager
 
-# The exceptions for CHIP Device Controller CLI
 class StatusCodeEnum(Enum):
     SUCCESS = 0
     FAILED =  1
@@ -80,6 +79,7 @@ class RPCResponseKeyEnum(Enum):
     RESULT = "result"
     ERROR  = "error"
 
+# The exceptions for CHIP Device Controller CLI
 class ChipDevCtrlException(exceptions.ChipStackException):
     pass
 
@@ -137,8 +137,7 @@ def FormatZCLArguments(args, command):
 
 class DeviceMgrCmd(Cmd):
     def __init__(self, rendezvousAddr=None, controllerNodeId=0, bluetoothAdapter=None):
-        self.lastNetworkId = None
-        
+        self.lastNetworkId = None       
         Cmd.__init__(self)
 
         Cmd.identchars = string.ascii_letters + string.digits + "-"
@@ -630,6 +629,7 @@ def echo_alive(message):
     print(message)
     return message
 
+
 def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
     try:
         __check_supported_os()
@@ -688,10 +688,32 @@ def zcl_enable_network(node_id: int, ssid:str, endpoint_id: Optional[int] = 1, g
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def ble_scan():
-    device_manager.do_blescan("")
-    #TODO: Return a list of available devices
-    return "Scan started"
+    try:
+        __check_supported_os()
+        device_manager.do_blescan("")
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = __get_peripheral_list())
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
+def __get_peripheral_list() -> Dict[Any, Any]:
+    device_list = []
+    for device in device_manager.bleMgr.peripheral_list:
+        device_detail = {}       
+        devIdInfo = device_manager.bleMgr.get_peripheral_devIdInfo(device)
+        if devIdInfo != None:
+            device_detail['name'] = str(device.Name)
+            device_detail['id'] = str(device.device_id)
+            device_detail['rssi'] = str(device.RSSI)
+            device_detail['address'] = str(device.Address)
+            device_detail['pairing_state'] = devIdInfo.pairingState
+            device_detail['discriminator'] = devIdInfo.discriminator
+            device_detail['vendor_id'] = devIdInfo.vendorId
+            device_detail['product_id'] = devIdInfo.productId
+            if device.ServiceData:
+                for advuuid in device.ServiceData:
+                    device_detail['adv_uuid'] = str(advuuid)
+            device_list.append(device_detail)
+    return device_list
 
 def ble_connect(discriminator: int, pin_code: int, node_id: int) -> Dict[str, Any]:
     try:
@@ -699,11 +721,9 @@ def ble_connect(discriminator: int, pin_code: int, node_id: int) -> Dict[str, An
         device_manager.devCtrl.ConnectBLE(discriminator, pin_code, node_id)
         return __get_response_dict(status = StatusCodeEnum.SUCCESS)
     except exceptions.ChipStackException as ex:
-        print(str(ex))
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
-
 
 def ip_connect(ip_address: string, pin_code: int, node_id: int) -> Dict[str, Any]:
     try:
@@ -738,12 +758,13 @@ def __get_response_dict(status: StatusCodeEnum, result: Optional[Dict[Any, Any]]
     return { RPCResponseKeyEnum.STATUS.value : status.value, RPCResponseKeyEnum.RESULT.value : result, RPCResponseKeyEnum.ERROR.value : error }
 
 def __check_supported_os()-> bool:
-    if platform.system() == 'Darwin':
+    if platform.system().lower() == 'darwin':
         raise Exception(platform.system() + " not supported")
-    elif sys.platform.startswith('linux'):
+    elif sys.platform.lower().startswith('linux'):
         return True
 
     raise Exception("OS Not Supported")
+    
 ######--------------------------------------------------######
 
 def main():
