@@ -43,7 +43,6 @@ from chip.setup_payload import SetupPayload
 from xmlrpc.server import SimpleXMLRPCServer
 from enum import Enum
 from typing import Any, Dict,Optional
-import logging
 # Extend sys.path with one or more directories, relative to the location of the
 # running script, in which the chip package might be found .  This makes it
 # possible to run the device manager shell from a non-standard install location,
@@ -75,6 +74,11 @@ elif sys.platform.startswith('linux'):
 class StatusCodeEnum(Enum):
     SUCCESS = 0
     FAILED =  1
+
+class RPCResponseKeyEnum(Enum):
+    STATUS = "status"
+    RESULT = "result"
+    ERROR  = "error"
 
 class ChipDevCtrlException(exceptions.ChipStackException):
     pass
@@ -128,8 +132,6 @@ def FormatZCLArguments(args, command):
             commandArgs[key] = value
         elif valueType == 'bytes':
             commandArgs[key] = ParseEncodedString(value)
-
-    logger.info("ARGUMENTS:", commandArgs)
     return commandArgs
 
 
@@ -137,7 +139,6 @@ class DeviceMgrCmd(Cmd):
     def __init__(self, rendezvousAddr=None, controllerNodeId=0, bluetoothAdapter=None):
         self.lastNetworkId = None
         
-        self.logger = logging.getLogger("DeviceMgrCmd")
         Cmd.__init__(self)
 
         Cmd.identchars = string.ascii_letters + string.digits + "-"
@@ -485,42 +486,30 @@ class DeviceMgrCmd(Cmd):
                     else:
                         print("  <no arguments>")
             elif len(args) > 4:
-                self.logger.info("Inside len args greater than 4")
                 if args[0] not in all_commands:
                     raise exceptions.UnknownCluster(args[0])
                 command = all_commands.get(args[0]).get(args[1], None)
-                self.logger.info("Command")
-                self.logger.info(command)
                 # When command takes no arguments, (not command) is True
                 if command == None:
                     raise exceptions.UnknownCommand(args[0], args[1])
                 err, res = self.devCtrl.ZCLSend(args[0], args[1], int(
                     args[2]), int(args[3]), int(args[4]), FormatZCLArguments(args[5:], command), blocking=True)
                 if err != 0:
-                    self.logger.error("Failed to receive command response: ")
-                    self.logger.error(res)
-                    print("Failed to receive command response: " +res)
+                    print("Failed to receive command response: {}".format(res))
                 elif res != None:
-                    self.logger.info("Received command status response:: ")
-                    self.logger.error(res)
-
                     print("Received command status response:")
                     print(res)
                 else:
-                    self.logger.info("Success, no status code is attached with response.")
-                    
                     print("Success, no status code is attached with response.")
             else:
                 self.do_help("zcl")
         except exceptions.ChipStackException as ex:
-            self.logger.error("Exception {}", str(ex))
             print("An exception occurred during process ZCL command:")
             print(str(ex))
         except Exception as ex:
             import traceback
             print("An exception occurred during processing input:")
             traceback.print_exc()
-            self.logger.error("Exception {}", str(ex))
             print(str(ex))
 
     def do_zclread(self, line):
@@ -635,7 +624,6 @@ class DeviceMgrCmd(Cmd):
 # https://github.com/chip-csg/connectedhomeip/issues/8
 device_manager = DeviceMgrCmd(rendezvousAddr=None,
                              controllerNodeId=0, bluetoothAdapter=0)
-logger = logging.getLogger("RPCServer")
 
 # CHIP commands needed by the Harness Tool
 def echo_alive(message):
@@ -645,10 +633,7 @@ def echo_alive(message):
 def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
     try:
         __check_supported_os()
-        logger.info("Resolve started")
         err = device_manager.devCtrl.ResolveNode(fabric_id, node_id)
-        logger.info("Resolve complete")
-        logger.info("error:", err)
         if err == 0:
             address = device_manager.devCtrl.GetAddressAndPort(int(args[1]))
             address = "{}:{}".format(
@@ -660,63 +645,47 @@ def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
-def zcl_add_network(node_id: int, ssid: str, password: str) -> Dict[str, Any] :
+def zcl_add_network(node_id: int, ssid: str, password: str, endpoint_id: Optional[int] = 1, group_id: Optional[int] = 0, breadcrumb: Optional[int] = 0, timeoutMs: Optional[int] = 1000) -> Dict[str, Any] :
     try:
+        __check_supported_os()
         args = {}
-        args['ssid'] = ssid
-        args['credentials'] = password
-        args['breadcrumb'] = 0
-        args['timeoutMs'] = 1000 
-        logger.info("ARGS:"+ args)
-        err, res = device_manager.devCtrl.ZCLSend("NetworkCommissioning", "AddWiFiNetwork", node_id, 1, 0, args, blocking=True)
+        args['ssid'] = ssid.encode("utf-8") + b'\x00'
+        args['credentials'] = password.encode("utf-8") + b'\x00'
+        args['breadcrumb'] = breadcrumb
+        args['timeoutMs'] = timeoutMs 
+        err, res = device_manager.devCtrl.ZCLSend("NetworkCommissioning", "AddWiFiNetwork", node_id, endpoint_id, group_id, args, blocking=True)
         if err != 0:
-            logger.info("Failed to receive command response: {}" , res)
+            return __get_response_dict(status = StatusCodeEnum.FAILED)
         elif res != None:
-            logger.info("Received command status response:")
-            logger.info(res)
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
         else:
-            logger.info("Success, no status code is attached with response.")
-        return __get_response_dict(status = StatusCodeEnum.SUCCESS)
-    except exceptions.ChipStackException as ex:
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
-    except Exception as e:
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
-
-def zcl_enable_network(node_id: int, ssid:str) -> Dict[str, Any]:
-    try:
-        args = {}
-        args['networkID'] = ssid
-        args['breadcrumb'] = 0
-        args['timeoutMs'] = 1000 
-  
-        err, res = device_manager.devCtrl.ZCLSend("NetworkCommissioning", "EnableNetwork", node_id, 1, 0, args, blocking=True)
-        if err != 0:
-            logger.info("Failed to receive command response: {}".format(res))
-        elif res != None:
-            logger.info("Received command status response:")
-            logger.info(res)
-        else:
-            logger.info("Success, no status code is attached with response.")
-        return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS)
         
     except exceptions.ChipStackException as ex:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
-def __formatZCLArguments(line):
-    args = shlex.split(line)
-    commandArgs = {}
-    for kvPair in args:
-        if kvPair.find("=") < 0:
-            raise ParsingError("Argument should in key=value format")
-        key, value = kvPair.split("=", 1)
-        logger.info(key + ":" + value)
-        commandArgs[key] = value
-    logger.info("Command args")
-    logger.info(commandArgs)
-    return commandArgs
-
+def zcl_enable_network(node_id: int, ssid:str, endpoint_id: Optional[int] = 1, group_id: Optional[int] = 0, breadcrumb: Optional[int] = 0, timeoutMs: Optional[int] = 1000) -> Dict[str, Any]:
+    try:
+        __check_supported_os()
+        args = {}
+        args['networkID'] = ssid.encode("utf-8") + b'\x00'
+        args['breadcrumb'] = breadcrumb
+        args['timeoutMs'] = timeoutMs 
+  
+        err, res = device_manager.devCtrl.ZCLSend("NetworkCommissioning", "EnableNetwork", node_id, endpoint_id, group_id, args, blocking=True)
+        if err != 0:
+            return __get_response_dict(status = StatusCodeEnum.FAILED)
+        elif res != None:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
+        else:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+        
+    except exceptions.ChipStackException as ex:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def ble_scan():
     device_manager.do_blescan("")
@@ -765,14 +734,8 @@ def start_rpc_server():
             print("\nKeyboard interrupt received, exiting.")
             sys.exit(0)
 
-def __get_response_dict(status: StatusCodeEnum, result: Optional[Dict[Any, Any]] = None, error:Optional[str] = None) -> Dict [Any, Any]:
-    if error is not None:
-        return { "status" : status.value, "error" :f'Unable to connect due to exception {error}' }
-    else:
-        if result is not None:
-            return { "status" : status.value, "result": result}
-        else:
-            return { "status" : status.value}
+def __get_response_dict(status: StatusCodeEnum, result: Optional[Dict[Any, Any]] = "", error:Optional[str] = "") -> Dict [str, Any]:
+    return { RPCResponseKeyEnum.STATUS.value : status.value, RPCResponseKeyEnum.RESULT.value : result, RPCResponseKeyEnum.ERROR.value : error }
 
 def __check_supported_os()-> bool:
     if platform.system() == 'Darwin':
@@ -784,7 +747,7 @@ def __check_supported_os()-> bool:
 ######--------------------------------------------------######
 
 def main():
-    #start_rpc_server()
+    start_rpc_server()
     
     # Never reach here
     optParser = OptionParser()
