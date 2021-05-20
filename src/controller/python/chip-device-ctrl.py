@@ -141,7 +141,7 @@ def FormatZCLArguments(args, command):
 
 class DeviceMgrCmd(Cmd):
     def __init__(self, rendezvousAddr=None, controllerNodeId=0, bluetoothAdapter=None):
-        self.lastNetworkId = None    
+        self.lastNetworkId = None
 
         Cmd.__init__(self)
 
