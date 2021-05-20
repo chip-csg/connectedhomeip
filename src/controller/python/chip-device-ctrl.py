@@ -762,7 +762,7 @@ def __check_supported_os()-> bool:
     raise Exception("OS Not Supported")
 
 ######--------------------------------------------------######
-    
+
 def main():
     start_rpc_server()
     
