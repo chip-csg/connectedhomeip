@@ -43,6 +43,7 @@ from chip.setup_payload import SetupPayload
 from xmlrpc.server import SimpleXMLRPCServer
 from enum import Enum
 from typing import Any, Dict,Optional
+
 # Extend sys.path with one or more directories, relative to the location of the
 # running script, in which the chip package might be found .  This makes it
 # possible to run the device manager shell from a non-standard install location,
@@ -70,6 +71,7 @@ if platform.system() == 'Darwin':
 elif sys.platform.startswith('linux'):
     from chip.ChipBluezMgr import BluezManager as BleManager
 
+
 class StatusCodeEnum(Enum):
     SUCCESS = 0
     FAILED =  1
@@ -80,6 +82,8 @@ class RPCResponseKeyEnum(Enum):
     ERROR  = "error"
 
 # The exceptions for CHIP Device Controller CLI
+
+
 class ChipDevCtrlException(exceptions.ChipStackException):
     pass
 
@@ -137,7 +141,8 @@ def FormatZCLArguments(args, command):
 
 class DeviceMgrCmd(Cmd):
     def __init__(self, rendezvousAddr=None, controllerNodeId=0, bluetoothAdapter=None):
-        self.lastNetworkId = None       
+        self.lastNetworkId = None    
+
         Cmd.__init__(self)
 
         Cmd.identchars = string.ascii_letters + string.digits + "-"
@@ -624,6 +629,7 @@ class DeviceMgrCmd(Cmd):
 device_manager = DeviceMgrCmd(rendezvousAddr=None,
                              controllerNodeId=0, bluetoothAdapter=0)
 
+
 # CHIP commands needed by the Harness Tool
 def echo_alive(message):
     print(message)
@@ -636,12 +642,13 @@ def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
         err = device_manager.devCtrl.ResolveNode(fabric_id, node_id)
         if err == 0:
             address = device_manager.devCtrl.GetAddressAndPort(int(args[1]))
-            address = "{}:{}".format(
-                *address) if address else "unknown"
+            if address is not None:
+                address = "{}:{}".format(
+                    *address)  
+                return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = {'address': address}) 
+            else:
+                return __get_response_dict(status = StatusCodeEnum.FAILED, error = "address not found")
             
-            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = {'address': address})
-    except exceptions.ChipStackException as ex:
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
@@ -660,9 +667,7 @@ def zcl_add_network(node_id: int, ssid: str, password: str, endpoint_id: Optiona
             return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
         else:
             return __get_response_dict(status = StatusCodeEnum.SUCCESS)
-        
-    except exceptions.ChipStackException as ex:
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
+
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
@@ -677,13 +682,9 @@ def zcl_enable_network(node_id: int, ssid:str, endpoint_id: Optional[int] = 1, g
         err, res = device_manager.devCtrl.ZCLSend("NetworkCommissioning", "EnableNetwork", node_id, endpoint_id, group_id, args, blocking=True)
         if err != 0:
             return __get_response_dict(status = StatusCodeEnum.FAILED)
-        elif res != None:
-            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
         else:
-            return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
         
-    except exceptions.ChipStackException as ex:
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
@@ -720,8 +721,6 @@ def ble_connect(discriminator: int, pin_code: int, node_id: int) -> Dict[str, An
         __check_supported_os()
         device_manager.devCtrl.ConnectBLE(discriminator, pin_code, node_id)
         return __get_response_dict(status = StatusCodeEnum.SUCCESS)
-    except exceptions.ChipStackException as ex:
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
@@ -730,9 +729,6 @@ def ip_connect(ip_address: string, pin_code: int, node_id: int) -> Dict[str, Any
         __check_supported_os()
         device_manager.devCtrl.ConnectIP(ip_address.encode("utf-8"), pin_code, node_id)
         return __get_response_dict(status = StatusCodeEnum.SUCCESS)
-    except exceptions.ChipStackException as ex:
-        print(str(ex))
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
@@ -764,9 +760,9 @@ def __check_supported_os()-> bool:
         return True
 
     raise Exception("OS Not Supported")
-    
-######--------------------------------------------------######
 
+######--------------------------------------------------######
+    
 def main():
     start_rpc_server()
     
