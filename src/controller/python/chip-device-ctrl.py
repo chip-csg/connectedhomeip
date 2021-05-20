@@ -627,90 +627,105 @@ def ble_scan():
     #TODO: Return a list of available devices
     return "Scan started"
 
+def ble_perf() -> dict:
+    result = device_manager.bleMgr.perf_scan(target_value="02:4D:73:E4:F6:71", timeout=30)
+    print(result)
+
+def pase_scan() -> dict:
+    discriminator = "3840"
+    pin_code = "20202021"
+    node_id = 1234
+    device_manager.devCtrl.ConnectBLE(discriminator, pin_code, node_id)
+    return {"status":0}
+
+
+
 def start_rpc_server():
-    with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
-        server.register_function(echo_alive)
-        server.register_function(ble_scan)
-        server.register_multicall_functions()
-        print('Serving XML-RPC on localhost port 5000')
-        try:
-            server.serve_forever()
-        except KeyboardInterrupt:
-            print("\nKeyboard interrupt received, exiting.")
-            sys.exit(0)
+    ble_perf()
+    # with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
+    #     server.register_function(echo_alive)
+    #     server.register_function(ble_scan)
+    #     server.register_function(pase_scan)
+    #     server.register_multicall_functions()
+    #     print('Serving XML-RPC on localhost port 5000')
+    #     try:
+    #         server.serve_forever()
+    #     except KeyboardInterrupt:
+    #         print("\nKeyboard interrupt received, exiting.")
+    #         sys.exit(0)
 
 ######--------------------------------------------------######
 
 def main():
     start_rpc_server()
     
-    # Never reach here
-    optParser = OptionParser()
-    optParser.add_option(
-        "-r",
-        "--rendezvous-addr",
-        action="store",
-        dest="rendezvousAddr",
-        help="Device rendezvous address",
-        metavar="<ip-address>",
-    )
-    optParser.add_option(
-        "-n",
-        "--controller-nodeid",
-        action="store",
-        dest="controllerNodeId",
-        default=0,
-        type='int',
-        help="Controller node ID",
-        metavar="<nodeid>",
-    )
+    # # Never reach here
+    # optParser = OptionParser()
+    # optParser.add_option(
+    #     "-r",
+    #     "--rendezvous-addr",
+    #     action="store",
+    #     dest="rendezvousAddr",
+    #     help="Device rendezvous address",
+    #     metavar="<ip-address>",
+    # )
+    # optParser.add_option(
+    #     "-n",
+    #     "--controller-nodeid",
+    #     action="store",
+    #     dest="controllerNodeId",
+    #     default=0,
+    #     type='int',
+    #     help="Controller node ID",
+    #     metavar="<nodeid>",
+    # )
 
-    if sys.platform.startswith("linux"):
-        optParser.add_option(
-            "-b",
-            "--bluetooth-adapter",
-            action="store",
-            dest="bluetoothAdapter",
-            default="hci0",
-            type="str",
-            help="Controller bluetooth adapter ID",
-            metavar="<bluetooth-adapter>",
-        )
-    (options, remainingArgs) = optParser.parse_args(sys.argv[1:])
+    # if sys.platform.startswith("linux"):
+    #     optParser.add_option(
+    #         "-b",
+    #         "--bluetooth-adapter",
+    #         action="store",
+    #         dest="bluetoothAdapter",
+    #         default="hci0",
+    #         type="str",
+    #         help="Controller bluetooth adapter ID",
+    #         metavar="<bluetooth-adapter>",
+    #     )
+    # (options, remainingArgs) = optParser.parse_args(sys.argv[1:])
 
-    if len(remainingArgs) != 0:
-        print("Unexpected argument: %s" % remainingArgs[0])
-        sys.exit(-1)
+    # if len(remainingArgs) != 0:
+    #     print("Unexpected argument: %s" % remainingArgs[0])
+    #     sys.exit(-1)
 
-    adapterId = None
-    if sys.platform.startswith("linux"):
-        if not options.bluetoothAdapter.startswith("hci"):
-            print(
-                "Invalid bluetooth adapter: {}, adapter name looks like hci0, hci1 etc.")
-            sys.exit(-1)
-        else:
-            try:
-                adapterId = int(options.bluetoothAdapter[3:])
-            except:
-                print(
-                    "Invalid bluetooth adapter: {}, adapter name looks like hci0, hci1 etc.")
-                sys.exit(-1)
+    # adapterId = None
+    # if sys.platform.startswith("linux"):
+    #     if not options.bluetoothAdapter.startswith("hci"):
+    #         print(
+    #             "Invalid bluetooth adapter: {}, adapter name looks like hci0, hci1 etc.")
+    #         sys.exit(-1)
+    #     else:
+    #         try:
+    #             adapterId = int(options.bluetoothAdapter[3:])
+    #         except:
+    #             print(
+    #                 "Invalid bluetooth adapter: {}, adapter name looks like hci0, hci1 etc.")
+    #             sys.exit(-1)
 
-    devMgrCmd = DeviceMgrCmd(rendezvousAddr=options.rendezvousAddr,
-                             controllerNodeId=options.controllerNodeId, bluetoothAdapter=adapterId)
-    print("Chip Device Controller Shell")
-    if options.rendezvousAddr:
-        print("Rendezvous address set to %s" % options.rendezvousAddr)
+    # devMgrCmd = DeviceMgrCmd(rendezvousAddr=options.rendezvousAddr,
+    #                          controllerNodeId=options.controllerNodeId, bluetoothAdapter=adapterId)
+    # print("Chip Device Controller Shell")
+    # if options.rendezvousAddr:
+    #     print("Rendezvous address set to %s" % options.rendezvousAddr)
 
-    # Adapter ID will always be 0
-    if adapterId != 0:
-        print("Bluetooth adapter set to hci{}".format(adapterId))
-    print()
+    # # Adapter ID will always be 0
+    # if adapterId != 0:
+    #     print("Bluetooth adapter set to hci{}".format(adapterId))
+    # print()
 
-    try:
-        devMgrCmd.cmdloop()
-    except KeyboardInterrupt:
-        print("\nQuitting")
+    # try:
+    #     devMgrCmd.cmdloop()
+    # except KeyboardInterrupt:
+    #     print("\nQuitting")
 
     sys.exit(0)
 

@@ -73,12 +73,16 @@ chip_service_short = uuid.UUID("0000FFF6-0000-0000-0000-000000000000")
 chromecast_setup_service = uuid.UUID("0000FEA0-0000-1000-8000-00805F9B34FB")
 chromecast_setup_service_short = uuid.UUID("0000FEA0-0000-0000-0000-000000000000")
 
+
+
 BLUEZ_NAME = "org.bluez"
 ADAPTER_INTERFACE = BLUEZ_NAME + ".Adapter1"
 DEVICE_INTERFACE = BLUEZ_NAME + ".Device1"
 SERVICE_INTERFACE = BLUEZ_NAME + ".GattService1"
 CHARACTERISTIC_INTERFACE = BLUEZ_NAME + ".GattCharacteristic1"
 DBUS_PROPERTIES = "org.freedesktop.DBus.Properties"
+DBUS_OBJECT_MANANGER = "org.freedesktop.DBus.ObjectManager"
+DBUS_SERVICE_DATA_KEY = "ServiceData"
 
 BLE_SCAN_CONNECT_GUARD_SEC = 2.0
 BLE_STATUS_TRANSITION_TIMEOUT_SEC = 5.0
@@ -135,7 +139,7 @@ class BluezDbusAdapter:
 
     def adapter_register_signal(self):
         if self.signalReceiver is None:
-            self.logger.debug("add adapter signal")
+            self.logger.debug(f"add adapter signal [{self.path}]")
             self.signalReceiver = self.bus.add_signal_receiver(
                 self.adapter_on_prop_changed_cb,
                 bus_name=BLUEZ_NAME,
@@ -150,8 +154,10 @@ class BluezDbusAdapter:
             self.bus.remove_signal_receiver(
                 self.signalReceiver,
                 signal_name="PropertiesChanged",
-                dbus_interface="org.freedesktop.DBus.Properties",
+                dbus_interface=DBUS_PROPERTIES
             )
+            self.signalReceiver = None
+        
 
     def adapter_on_prop_changed_cb(
         self, interface, changed_properties, invalidated_properties
@@ -171,6 +177,7 @@ class BluezDbusAdapter:
                 self.adapter_event.set()
 
     def adapter_bg_scan(self, enable):
+        self.SetDiscoveryFilter({"DuplicateData": True})
         self.adapter_event.clear()
         action_flag = False
         try:
@@ -530,7 +537,7 @@ class BluezDbusDevice:
     @property
     def ServiceData(self):
         try:
-            return self.device_properties.Get(DEVICE_INTERFACE, "ServiceData")
+            return self.device_properties.Get(DEVICE_INTERFACE, DBUS_SERVICE_DATA_KEY)
         except dbus.exceptions.DBusException as ex:
             self.logger.debug(str(ex))
             return None
@@ -816,6 +823,9 @@ class BluezManager(ChipBleBase):
         self.setInputHook(self.readlineCB)
         self.devMgr = devMgr
         self.devMgr.SetBlockingCB(self.devMgrCB)
+        self.interface_added_signal_receiver = None
+        self.perf_scan_result = None
+        self.perf_scan_filter_value = None
 
     def __del__(self):
         self.disconnect()
@@ -928,11 +938,7 @@ class BluezManager(ChipBleBase):
         self.logger.info("{0:<16}= {1}".format("Address", device.Address))
 
         devIdInfo = self.get_peripheral_devIdInfo(device)
-        if devIdInfo != None:
-            self.logger.info("{0:<16}= {1}".format("Pairing State", devIdInfo.pairingState))
-            self.logger.info("{0:<16}= {1}".format("Discriminator", devIdInfo.discriminator))
-            self.logger.info("{0:<16}= {1}".format("Vendor Id", devIdInfo.vendorId))
-            self.logger.info("{0:<16}= {1}".format("Product Id", devIdInfo.productId))
+        self.dump_devIdInfo(devIdInfo)
 
         if device.ServiceData:
             for advuuid in device.ServiceData:
@@ -941,6 +947,13 @@ class BluezManager(ChipBleBase):
         else:
             self.logger.info("")
         self.logger.info("")
+
+    def dump_devIdInfo(self, devIdInfo):
+        if devIdInfo != None:
+            self.logger.info("{0:<16}= {1}".format("Pairing State", devIdInfo.pairingState))
+            self.logger.info("{0:<16}= {1}".format("Discriminator", devIdInfo.discriminator))
+            self.logger.info("{0:<16}= {1}".format("Vendor Id", devIdInfo.vendorId))
+            self.logger.info("{0:<16}= {1}".format("Product Id", devIdInfo.productId))
 
     def scan_bg_implementation(self, **kwargs):
         self.adapter.clear_adapter()
@@ -990,6 +1003,21 @@ class BluezManager(ChipBleBase):
             time.sleep(BLE_IDLE_DELTA)
         self.adapter.adapter_bg_scan(False)
 
+    def perf_scan_bg_implementation(self, **kwargs):
+        self.adapter.clear_adapter()
+        with self.chip_queue.mutex:
+            self.chip_queue.queue.clear()
+        
+        # Start scanning
+        self.adapter.adapter_bg_scan(True)
+        timeout = kwargs["timeout"] + time.time()
+        
+        while time.time() < timeout:
+            # Do nothing just wait (discovery is handled in callback on added interface)
+            time.sleep(BLE_IDLE_DELTA)
+        # Stop Scanning
+        self.adapter.adapter_bg_scan(False)
+
     def scan(self, line):
         args = self.ParseInputLine(line, "scan")
         if not args:
@@ -1005,6 +1033,96 @@ class BluezManager(ChipBleBase):
         )
         return True
 
+    def perf_scan(self, target_value, timeout=10):
+        self.logger.info(f"Running performance scanning for {timeout}s")
+        self.target = None
+        self.perf_scan_result = dict()
+        self.perf_scan_filter_value = target_value
+
+        # ensure adapter is selected
+        if not self.adapter:
+            self.logger.info("use default adapter")
+            self.ble_adapter_select()
+
+        self.register_interface_added_signal()
+        self.runLoopUntil(
+            self.perf_scan_bg_implementation, timeout=timeout
+        )
+        self.logger.info(f"Performance scanning found {len(self.perf_scan_result.keys())} adv in {timeout}s")
+        return self.perf_scan_result
+
+    def register_interface_added_signal(self):
+        if self.interface_added_signal_receiver is None:
+            self.logger.debug(f"add adapter signal for new interface [{self.bus}]")
+            self.interface_added_signal_receiver = self.bus.add_signal_receiver(
+                self.adapter_on_interface_added_cb,
+                dbus_interface=DBUS_OBJECT_MANANGER,
+                signal_name="InterfacesAdded",
+            )
+
+    def unregister_interface_added_signal(self):
+        if self.interfaceSignalReceiver is not None:
+            self.logger.debug(" remove adapter signal for new interface")
+            self.bus.remove_signal_receiver(
+                self.interfaceSignalReceiver,
+                signal_name="InterfacesAdded",
+                dbus_interface=DBUS_OBJECT_MANANGER
+            )
+            self.interfaceSignalReceiver = None
+
+    def adapter_on_interface_added_cb(self, path, interfaces_and_properties):
+        self.logger.debug(f"{len(interfaces_and_properties.keys())} device(s) found.")
+        for iface, properties in interfaces_and_properties.items():            
+            self.logger.debug(f"interface: {iface} on {path} with properties: {properties}")
+            # Ignore interface without properties
+            if len(properties) == 0:
+                continue
+            
+            # TODO filter on discriminator 
+            if "Address" not in properties:
+                continue
+
+            if (properties['Address'] != self.perf_scan_filter_value):
+                continue
+            
+            # dev_id_info = self.get_properties_devIdInfo(properties)
+            # if dev_id_info is None:
+            #     continue
+            
+            # if dev_id_info.discriminator == self.perf_scan_filter_value:
+            #     self.perf_scan_result[time.time()] = dev_id_info.discriminator
+
+            time_now = time.time()
+            diff = 0
+            if len(self.perf_scan_result.keys()) > 0:
+                time_prev = list(self.perf_scan_result.keys())[-1]
+                diff = time_now - time_prev
+            self.perf_scan_result[time.time()] = diff
+            
+            # Remove device to get all advertisements.
+            try:
+                self.adapter.adapter.RemoveDevice(path)
+            except Exception as err:
+                self.logger.error(err)
+
+
+
+    def get_properties_devIdInfo(self, properties):
+        if DBUS_SERVICE_DATA_KEY not in properties:
+            return None
+        service_data = properties[DBUS_SERVICE_DATA_KEY]
+        
+        self.logger.info(f"interface has services: {service_data}")
+
+        if not isinstance(service_data, dict):
+            return None
+        
+        for advuuid in service_data.keys():
+            if str(advuuid).lower() == str(chip_service).lower():
+                return ParseServiceData(bytes(service_data[advuuid]))
+        
+        return None
+
     def get_peripheral_devIdInfo(self, peripheral):
         if not peripheral.ServiceData:
             return None
@@ -1012,6 +1130,8 @@ class BluezManager(ChipBleBase):
             if str(advuuid).lower() == str(chip_service).lower():
                 return ParseServiceData(bytes(peripheral.ServiceData[advuuid]))
         return None
+
+    
 
     def ble_debug_log(self, line):
         args = self.ParseInputLine(line)

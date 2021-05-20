@@ -87,8 +87,10 @@ async def main():
     try: 
         print("Calling RPCs")
         print("echo_alive Response:" + server_1.echo_alive("Test"))
-    except:
-        destroy_container(container_1)
+        result = server_1.pase_scan()
+        print(result)
+    except Exception as e:
+        print(e)
 
     # Cleanup
     destroy_container(container_1)
