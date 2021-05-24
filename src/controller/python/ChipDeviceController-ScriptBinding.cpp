@@ -89,7 +89,7 @@ CHIP_ERROR
 pychip_DeviceController_GetAddressAndPort(chip::Controller::DeviceCommissioner * devCtrl, chip::NodeId nodeId, char * outAddress,
                                           uint64_t maxAddressLen, uint16_t * outPort);
 // CSG
-CHIP_ERROR pychip_DeviceController_GetPASEData();
+const char * pychip_DeviceController_GetPASEData(chip::Controller::DeviceCommissioner * devCtrl);
 
 // Rendezvous
 CHIP_ERROR pychip_DeviceController_ConnectBLE(chip::Controller::DeviceCommissioner * devCtrl, uint16_t discriminator,
@@ -212,28 +212,35 @@ void pychip_DeviceController_SetLogFilter(uint8_t category)
 #endif
 }
 
-CHIP_ERROR pychip_DeviceController_GetPASEData()
+const char * pychip_DeviceController_GetPASEData(chip::Controller::DeviceCommissioner * devCtrl)
 {
+
     //error = pychip_DeviceController_ConnectBLE(devCtrl, discriminator, set)
-    return 0;
+    std::string PBKDFParamRequest_str_key ("PBKDFParamRequest");
+    ChipLogProgress(Controller, "Fetching the pase session");
+    PASESession *pase_session = devCtrl->GetPASESession();
+    std::map<std::string, std::map<std::string, std::string>> *paseTrace = pase_session->getPASETrace();
+    // std::map<std::string, std::string> request_map = *paseTrace[PBKDFParamRequest_str_key];
+    std::map<std::string, std::map<std::string, std::string>> map = *paseTrace;
+    for (auto& x: map) {
+        std::cout << x.first << ": " << '\n' << "---->";
+        for (auto& y: x.second) {
+            std::cout << y.first << ": " << y.second << '\n' << "---->";
+        }
+    }
+    ChipLogProgress(Controller, "Fetched pase session:%x", &pase_session);
+    ChipLogProgress(Controller, "Fetching the localkeyid");
+    return pase_session->GetI2RSessionInfo();
 }
 
 CHIP_ERROR pychip_DeviceController_ConnectBLE(chip::Controller::DeviceCommissioner * devCtrl, uint16_t discriminator,
                                               uint32_t setupPINCode, chip::NodeId nodeid)
 {
-
-    // void *pase_session = (void *)devCtrl->GetPASESession();
-    // pase_session = nullptr_t;
-    
-    ChipLogProgress(Discovery, "Hello from the other side!");
-
-
     return devCtrl->PairDevice(nodeid,
                                chip::RendezvousParameters()
                                    .SetPeerAddress(Transport::PeerAddress(Transport::Type::kBle))
                                    .SetSetupPINCode(setupPINCode)
                                    .SetDiscriminator(discriminator));
-
 }
 
 CHIP_ERROR pychip_DeviceController_ConnectIP(chip::Controller::DeviceCommissioner * devCtrl, const char * peerAddrStr,

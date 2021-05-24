@@ -807,8 +807,8 @@ CHIP_ERROR DeviceCommissioner::Shutdown()
 }
 
 PASESession *DeviceCommissioner::GetPASESession()
-{
-    return &mPairingSession;
+{   
+    return &mRendezvousSession->GetPairingSession();
 }
 
 CHIP_ERROR DeviceCommissioner::PairDevice(NodeId remoteDeviceId, RendezvousParameters & params)
