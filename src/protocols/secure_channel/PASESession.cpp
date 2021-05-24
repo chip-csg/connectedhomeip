@@ -42,7 +42,8 @@
 #include <support/CodeUtils.h>
 #include <support/SafeInt.h>
 #include <transport/SecureSessionMgr.h>
-
+#include <stdlib.h>
+#include <execinfo.h>
 namespace chip {
 
 using namespace Crypto;
@@ -98,6 +99,13 @@ void PASESession::Clear()
         mExchangeCtxt->Release();
         mExchangeCtxt = nullptr;
     }
+
+    mPASETrace = std::map<std::string, std::map<std::string, std::string>>();
+}
+
+std::map<std::string, std::map<std::string, std::string>> *PASESession::getPASETrace()
+{
+    return &mPASETrace;
 }
 
 CHIP_ERROR PASESession::Serialize(PASESessionSerialized & output)
@@ -337,6 +345,13 @@ CHIP_ERROR PASESession::DeriveSecureSession(const uint8_t * info, size_t info_le
 CHIP_ERROR PASESession::SendPBKDFParamRequest()
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
+    //uint8_t * data_start_ptr = NULL;
+    const size_t str_len = kPBKDFParamRandomNumberSize * CHARS_PER_BYTE + 1;
+    char * randomFromInitiator_ptr = (char *)malloc((str_len) * sizeof(char));
+    std::string randomFromInitiator_str_key ("RandomFromInitiator");
+    std::string PBKDFParamRequest_str_key ("PBKDFParamRequest");
+    std::string randomFromInitiator_str_value;
+    std::map<std::string,std::string> random_initiator_map = {};
 
     System::PacketBufferHandle req = System::PacketBufferHandle::New(kPBKDFParamRandomNumberSize);
     VerifyOrExit(!req.IsNull(), err = CHIP_SYSTEM_ERROR_NO_MEMORY);
@@ -345,8 +360,16 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
     SuccessOrExit(err);
 
     req->SetDataLength(kPBKDFParamRandomNumberSize);
-
+    
     // Update commissioning hash with the pbkdf2 param request that's being sent.
+    for (uint16_t i=0; i < req->DataLength(); i++) {
+        sprintf(randomFromInitiator_ptr+i*2, "%02x", req->Start()[i]);
+    }
+    randomFromInitiator_ptr[(req->DataLength())*2] = '\0';
+    randomFromInitiator_str_value = std::string(randomFromInitiator_ptr, str_len);
+    random_initiator_map.insert(std::make_pair(randomFromInitiator_str_key, randomFromInitiator_str_value)); 
+    mPASETrace.insert (std::make_pair(PBKDFParamRequest_str_key,random_initiator_map));
+
     err = mCommissioningHash.AddData(req->Start(), req->DataLength());
     SuccessOrExit(err);
 
@@ -355,9 +378,9 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
     err = mExchangeCtxt->SendMessage(Protocols::SecureChannel::MsgType::PBKDFParamRequest, std::move(req),
                                      SendFlags(SendMessageFlags::kExpectResponse));
     SuccessOrExit(err);
+    ChipLogDetail(Ble, "Saved msg: %s", randomFromInitiator_ptr);
 
     ChipLogDetail(Ble, "Sent PBKDF param request");
-
 exit:
 
     if (err != CHIP_NO_ERROR)
@@ -452,7 +475,7 @@ CHIP_ERROR PASESession::HandlePBKDFParamResponse(const System::PacketBufferHandl
     static_assert(CHAR_BIT == 8, "Assuming that sizeof returns octets");
     size_t fixed_resplen = kPBKDFParamRandomNumberSize + sizeof(uint64_t) + sizeof(uint32_t);
 
-    ChipLogDetail(Ble, "Received PBKDF param response");
+    ChipLogDetail(Ble, "Received PBKDF param response"); //TODO: Set 'PBKDFParamResponse' with message data
 
     VerifyOrExit(resp != nullptr, err = CHIP_ERROR_MESSAGE_INCOMPLETE);
     VerifyOrExit(resplen >= fixed_resplen, err = CHIP_ERROR_INVALID_MESSAGE_LENGTH);

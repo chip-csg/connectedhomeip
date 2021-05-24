@@ -26,6 +26,10 @@
 
 #pragma once
 
+#define CSG_TEST_HARNESS 1
+#define CHARS_PER_BYTE 2
+#include <map>
+
 #include <crypto/CHIPCryptoPAL.h>
 #if CHIP_CRYPTO_HSM
 #include <crypto/hsm/CHIPCryptoPALHsm.h>
@@ -43,7 +47,6 @@
 #include <transport/SessionEstablishmentDelegate.h>
 #include <transport/raw/MessageHeader.h>
 #include <transport/raw/PeerAddress.h>
-
 namespace chip {
 
 extern const char * kSpake2pI2RSessionInfo;
@@ -76,7 +79,7 @@ public:
     PASESession(const PASESession &) = delete;
     PASESession & operator=(const PASESession &) = default;
     PASESession & operator=(PASESession &&) = default;
-
+   std::map< std::string, std::map< std::string, std::string>> *getPASETrace();
     virtual ~PASESession();
 
     /**
@@ -161,7 +164,9 @@ public:
      *
      * @return uint16_t The assocated local key id
      */
-    uint16_t GetLocalKeyId() override { return mConnectionState.GetLocalKeyID(); }
+    uint16_t GetLocalKeyId() override { 
+                return mConnectionState.GetLocalKeyID(); 
+    }
 
     const char * GetI2RSessionInfo() const override { return kSpake2pI2RSessionInfo; }
 
@@ -241,6 +246,10 @@ private:
     SessionEstablishmentDelegate * mDelegate = nullptr;
 
     Protocols::SecureChannel::MsgType mNextExpectedMsg = Protocols::SecureChannel::MsgType::PASE_Spake2pError;
+
+#ifdef CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+    std::map< std::string, std::map< std::string, std::string>> mPASETrace;
+#endif //CSG_TRACE_END
 
 #ifdef ENABLE_HSM_SPAKE
     Spake2pHSM_P256_SHA256_HKDF_HMAC mSpake2p;
