@@ -153,11 +153,9 @@ class ChipDeviceController(object):
                 self.devCtrl, discriminator, setupPinCode, nodeid)
         )
         
-        print("####Calling chip stack get pase")
-
         res =  self._ChipStack.Call(
-        lambda: self._dmLib.pychip_DeviceController_GetPASEData())
-        print("######Other side returned: " + str(res))
+        lambda: self._dmLib.pychip_DeviceController_GetPASEData(self.devCtrl))
+        print("### Get PASE Data returned: " + str(res))
         return res
 
 
@@ -284,8 +282,8 @@ class ChipDeviceController(object):
                 c_void_p]
             self._dmLib.pychip_DeviceController_DeleteDeviceController.restype = c_uint32
 
-            self._dmLib.pychip_DeviceController_GetPASEData.argtypes = []
-            self._dmLib.pychip_DeviceController_GetPASEData.restype = c_uint32
+            self._dmLib.pychip_DeviceController_GetPASEData.argtypes = [c_void_p]
+            self._dmLib.pychip_DeviceController_GetPASEData.restype = c_char_p
 
             self._dmLib.pychip_DeviceController_ConnectBLE.argtypes = [
                 c_void_p, c_uint16, c_uint32, c_uint64]
@@ -324,4 +322,3 @@ class ChipDeviceController(object):
 
             self._dmLib.pychip_GetCommandSenderHandle.argtypes = [c_void_p]
             self._dmLib.pychip_GetCommandSenderHandle.restype = c_uint64
-

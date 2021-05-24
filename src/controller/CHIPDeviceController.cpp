@@ -698,8 +698,8 @@ CHIP_ERROR DeviceCommissioner::Shutdown()
 }
 
 PASESession *DeviceCommissioner::GetPASESession()
-{
-    return &mPairingSession;
+{   
+    return &mRendezvousSession->GetPairingSession();
 }
 
 CHIP_ERROR DeviceCommissioner::PairDevice(NodeId remoteDeviceId, RendezvousParameters & params)
@@ -890,8 +890,10 @@ void DeviceCommissioner::FreeRendezvousSession()
     if (mRendezvousSession != nullptr)
     {
         mNextKeyId = mRendezvousSession->GetNextKeyId();
+        /* CSG Top Secret Work: please ignore
         chip::Platform::Delete(mRendezvousSession);
         mRendezvousSession = nullptr;
+        */
     }
 }
 
