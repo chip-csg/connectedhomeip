@@ -806,10 +806,12 @@ CHIP_ERROR DeviceCommissioner::Shutdown()
     return CHIP_NO_ERROR;
 }
 
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
 PASESession *DeviceCommissioner::GetPASESession()
 {   
     return &mRendezvousSession->GetPairingSession();
 }
+#endif //CSG_TRACE_END
 
 CHIP_ERROR DeviceCommissioner::PairDevice(NodeId remoteDeviceId, RendezvousParameters & params)
 {

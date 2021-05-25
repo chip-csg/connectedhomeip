@@ -43,8 +43,7 @@
 #include <support/ErrorStr.h>
 #include <support/SafeInt.h>
 #include <transport/SecureSessionMgr.h>
-#include <stdlib.h>
-#include <execinfo.h>
+#include <csg_test_harness/constants.h>
 namespace chip {
 
 using namespace Crypto;
@@ -351,13 +350,14 @@ CHIP_ERROR PASESession::DeriveSecureSession(SecureSession & session, SecureSessi
 
 CHIP_ERROR PASESession::SendPBKDFParamRequest()
 {
-    //uint8_t * data_start_ptr = NULL;
+#ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     const size_t str_len = kPBKDFParamRandomNumberSize * CHARS_PER_BYTE + 1;
     char * randomFromInitiator_ptr = (char *)malloc((str_len) * sizeof(char));
     std::string randomFromInitiator_str_key ("RandomFromInitiator");
     std::string PBKDFParamRequest_str_key ("PBKDFParamRequest");
     std::string randomFromInitiator_str_value;
     std::map<std::string,std::string> random_initiator_map = {};
+#endif //CSG_TRACE_END
 
     System::PacketBufferHandle req = System::PacketBufferHandle::New(kPBKDFParamRandomNumberSize);
     VerifyOrReturnError(!req.IsNull(), CHIP_SYSTEM_ERROR_NO_MEMORY);
@@ -365,7 +365,8 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
     ReturnErrorOnFailure(DRBG_get_bytes(req->Start(), kPBKDFParamRandomNumberSize));
 
     req->SetDataLength(kPBKDFParamRandomNumberSize);
-    
+
+#ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     // Update commissioning hash with the pbkdf2 param request that's being sent.
 
     for (uint16_t i=0; i < req->DataLength(); i++) {
@@ -375,6 +376,8 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
     randomFromInitiator_str_value = std::string(randomFromInitiator_ptr, str_len);
     random_initiator_map.insert(std::make_pair(randomFromInitiator_str_key, randomFromInitiator_str_value)); 
     mPASETrace.insert (std::make_pair(PBKDFParamRequest_str_key,random_initiator_map));
+    ChipLogDetail(Ble, "### Saved msg: %s", randomFromInitiator_ptr);
+#endif //CSG_TRACE_END
 
     ReturnErrorOnFailure(mCommissioningHash.AddData(req->Start(), req->DataLength()));
 
@@ -474,6 +477,7 @@ CHIP_ERROR PASESession::HandlePBKDFParamResponse(const System::PacketBufferHandl
     size_t fixed_resplen = kPBKDFParamRandomNumberSize + sizeof(uint64_t) + sizeof(uint32_t);
 
     ChipLogDetail(SecureChannel, "Received PBKDF param response");
+
 
     VerifyOrExit(resp != nullptr, err = CHIP_ERROR_MESSAGE_INCOMPLETE);
     VerifyOrExit(resplen >= fixed_resplen, err = CHIP_ERROR_INVALID_MESSAGE_LENGTH);

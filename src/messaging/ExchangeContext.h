@@ -105,7 +105,6 @@ public:
                            const SendFlags & sendFlags = SendFlags(SendMessageFlags::kNone))
     {
         static_assert(std::is_same<std::underlying_type_t<MessageType>, uint8_t>::value, "Enum is wrong size; cast is not safe");
-        ChipLogProgress(Controller,"Sending Message Type: %u, Message Payload: %u", msgType, msgPayload->DataLength());
         return SendMessage(Protocols::MessageTypeTraits<MessageType>::ProtocolId(), static_cast<uint8_t>(msgType),
                            std::move(msgPayload), sendFlags);
     }
