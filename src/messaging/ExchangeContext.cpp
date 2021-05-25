@@ -399,8 +399,6 @@ CHIP_ERROR ExchangeContext::HandleMessage(const PacketHeader & packetHeader, con
     // is implicitly that response.
     SetResponseExpected(false);
 
-    ChipLogProgress(Controller,"Received Message Type: %u, Message Payload: %u", payloadHeader.GetMessageType(), msgBuf->DataLength());
-
     if (mDelegate != nullptr)
     {
         mDelegate->OnMessageReceived(this, packetHeader, payloadHeader, std::move(msgBuf));

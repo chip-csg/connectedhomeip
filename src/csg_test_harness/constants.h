@@ -21,5 +21,6 @@
 #define CHARS_PER_BYTE 2
 #include <map>
 #include <string.h>
+#include <stdlib.h>
 
 #endif

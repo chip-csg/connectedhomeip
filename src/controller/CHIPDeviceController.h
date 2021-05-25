@@ -332,7 +332,9 @@ public:
     void SetDevicePairingDelegate(DevicePairingDelegate * pairingDelegate) { mPairingDelegate = pairingDelegate; }
 
     CHIP_ERROR Shutdown() override;
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGON
     PASESession *GetPASESession();
+#endif //CSH_TRACE_END
     // ----- Connection Management -----
     /**
      * @brief
