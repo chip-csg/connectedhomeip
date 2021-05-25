@@ -26,9 +26,9 @@
 
 #pragma once
 
-#define CSG_TEST_HARNESS 1
-#define CHARS_PER_BYTE 2
-#include <map>
+#if CHIP_CSG_TEST_HARNESS
+#include <csg_test_harness/constants.h>
+#endif
 
 #include <crypto/CHIPCryptoPAL.h>
 #if CHIP_CRYPTO_HSM
@@ -79,7 +79,9 @@ public:
     PASESession(const PASESession &) = delete;
     PASESession & operator=(const PASESession &) = default;
     PASESession & operator=(PASESession &&) = default;
-   std::map< std::string, std::map< std::string, std::string>> *getPASETrace();
+#ifdef CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+    std::map< std::string, std::map< std::string, std::string>> *getPASETrace();
+#endif //CSG_TRACE_END
     virtual ~PASESession();
 
     /**
@@ -166,9 +168,7 @@ public:
      *
      * @return uint16_t The assocated local key id
      */
-    uint16_t GetLocalKeyId() override { 
-                return mConnectionState.GetLocalKeyID(); 
-    }
+    uint16_t GetLocalKeyId() override { return mConnectionState.GetLocalKeyID(); }
 
     const char * GetI2RSessionInfo() const override { return kSpake2pI2RSessionInfo; }
 
