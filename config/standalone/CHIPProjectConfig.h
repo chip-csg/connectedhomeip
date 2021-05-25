@@ -73,4 +73,7 @@
 
 #define CHIP_DEVICE_CONFIG_ENABLE_TEST_DEVICE_IDENTITY 1
 
+// Configuration to enable CSG Test Harness customizations
+#define CHIP_CSG_TEST_HARNESS 1
+
 #endif /* CHIPPROJECTCONFIG_H */

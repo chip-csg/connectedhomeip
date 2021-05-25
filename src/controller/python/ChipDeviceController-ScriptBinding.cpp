@@ -83,9 +83,9 @@ CHIP_ERROR pychip_DeviceController_DeleteDeviceController(chip::Controller::Devi
 CHIP_ERROR
 pychip_DeviceController_GetAddressAndPort(chip::Controller::DeviceCommissioner * devCtrl, chip::NodeId nodeId, char * outAddress,
                                           uint64_t maxAddressLen, uint16_t * outPort);
-// CSG
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
 const char * pychip_DeviceController_GetPASEData(chip::Controller::DeviceCommissioner * devCtrl);
-
+#endif //CSG_TRACE_END
 // Rendezvous
 CHIP_ERROR pychip_DeviceController_ConnectBLE(chip::Controller::DeviceCommissioner * devCtrl, uint16_t discriminator,
                                               uint32_t setupPINCode, chip::NodeId nodeid);
@@ -203,6 +203,7 @@ void pychip_DeviceController_SetLogFilter(uint8_t category)
 #endif
 }
 
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
 const char * pychip_DeviceController_GetPASEData(chip::Controller::DeviceCommissioner * devCtrl)
 {
 
@@ -223,6 +224,7 @@ const char * pychip_DeviceController_GetPASEData(chip::Controller::DeviceCommiss
     ChipLogProgress(Controller, "Fetching the localkeyid");
     return pase_session->GetI2RSessionInfo();
 }
+#endif //CSG_TRACE_END
 
 CHIP_ERROR pychip_DeviceController_ConnectBLE(chip::Controller::DeviceCommissioner * devCtrl, uint16_t discriminator,
                                               uint32_t setupPINCode, chip::NodeId nodeid)
