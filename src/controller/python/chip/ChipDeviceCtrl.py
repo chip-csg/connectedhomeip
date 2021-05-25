@@ -158,9 +158,6 @@ class ChipDeviceController(object):
         print("### Get PASE Data returned: " + str(res))
         return res
 
-
-    # def ConnectBLEWithPASE(self)
-
     def CloseBLEConnection(self):
         return self._ChipStack.Call(
             lambda: self._dmLib.pychip_DeviceCommissioner_CloseBleConnection(self.devCtrl)
