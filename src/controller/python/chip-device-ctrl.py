@@ -429,7 +429,7 @@ class DeviceMgrCmd(Cmd):
                 self.devCtrl.ConnectIP(args[1].encode(
                     "utf-8"), int(args[2]), nodeid)
             elif args[0] == "-ble" and len(args) >= 3:
-                result = self.devCtrl.ConnectBLE(int(args[1]), int(args[2]), nodeid)
+                self.devCtrl.ConnectBLE(int(args[1]), int(args[2]), nodeid)
             elif args[0] == '-qr' and len(args) >=2:
                 print("Parsing QR code {}".format(args[1]))
                 setupPayload = SetupPayload().ParseQrCode(args[1])
@@ -638,8 +638,6 @@ device_manager = DeviceMgrCmd(rendezvousAddr=None,
 def echo_alive(message):
     print(message)
     return message
-<<<<<<< HEAD
-
 
 def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
     try:
@@ -736,9 +734,14 @@ def ip_connect(ip_address: string, pin_code: int, node_id: int) -> Dict[str, Any
         return __get_response_dict(status = StatusCodeEnum.SUCCESS)
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
-=======
->>>>>>> f54a3ae929 (Remove message lowercasing on rpc)
 
+def get_pase_data() -> Dict[Any, Any]:
+    try:
+        __check_supported_os()
+        pase_data = device_manager.devCtrl.GetPASEData()
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = pase_data)
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def start_rpc_server():
     with SimpleXMLRPCServer(("0.0.0.0", 5000), allow_none=True) as server:
@@ -749,6 +752,7 @@ def start_rpc_server():
         server.register_function(zcl_add_network)
         server.register_function(zcl_enable_network)
         server.register_function(resolve)
+        server.register_function(get_pase_data)
         server.register_multicall_functions()
         print('Serving XML-RPC on localhost port 5000')
         try:
@@ -771,15 +775,10 @@ def __check_supported_os()-> bool:
 ######--------------------------------------------------######
 
 def main():
-<<<<<<< HEAD
     start_rpc_server()
     
-    # Never reach here
-=======
-    create_rpc_server()
 
     # Never Executed: does not return here
->>>>>>> f54a3ae929 (Remove message lowercasing on rpc)
     optParser = OptionParser()
     optParser.add_option(
         "-r",
