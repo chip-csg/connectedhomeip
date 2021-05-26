@@ -46,8 +46,6 @@ const char * yaml_string_for_map(std::map<std::string, std::map<std::string, std
 
     char * response = new char [result_yaml_str.length()+1];
     strcpy(response, result_yaml_str.c_str());
-    std::cout << "### Sending string " << response << std::endl;
-    std::cout << "###" << std::endl;
     return response;
 }
 
@@ -61,6 +59,5 @@ std::string stringForDataBuffer(const uint8_t *start, uint16_t data_length)
     }
     data_string_ptr[data_length*2] = '\0';
     data_string = std::string(data_string_ptr);
-    std::cout << "### Saved: " + data_string << std::endl;
     return data_string;
 }
