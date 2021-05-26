@@ -111,7 +111,7 @@ void PASESession::CloseExchange()
     }
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     mPASETrace = std::map<std::string, std::map<std::string, std::string>>();
-    random_initiator_map = {};
+    initiator_message_map = {};
 #endif //CSG_TRACE_END
 }
 
@@ -369,8 +369,8 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
     // Update commissioning hash with the pbkdf2 param request that's being sent.
 
 #ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
-    random_initiator_map.insert(std::make_pair(randomFromInitiator_str_key, stringForDataBuffer(req->Start(), req->DataLength()))); 
-    mPASETrace.insert (std::make_pair(PBKDFParamRequest_str_key,random_initiator_map));
+    initiator_message_map.insert(std::make_pair(messageFromInitiator_str_key, stringForDataBuffer(req->Start(), req->DataLength()))); 
+    mPASETrace.insert (std::make_pair(PBKDFParamRequest_str_key,initiator_message_map));
 #endif //CSG_TRACE_END
 
     ReturnErrorOnFailure(mCommissioningHash.AddData(req->Start(), req->DataLength()));
@@ -495,7 +495,10 @@ CHIP_ERROR PASESession::HandlePBKDFParamResponse(const System::PacketBufferHandl
         err = SetupSpake2p(static_cast<uint32_t>(iterCount), msgptr, saltlen);
         SuccessOrExit(err);
     }
-
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+    responder_message_map.insert(std::make_pair(messageFromResponder_str_key, stringForDataBuffer(resp, msg->DataLength()))); 
+    mPASETrace.insert (std::make_pair(PBKDFParamResponse_str_key,responder_message_map));
+#endif //CSG_TRACE_END
     err = SendMsg1();
     SuccessOrExit(err);
 
