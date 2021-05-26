@@ -726,7 +726,7 @@ def __check_supported_os()-> bool:
 ######--------------------------------------------------######
 
 def main():
-    #start_rpc_server()
+    start_rpc_server()
     
     # Never reach here
     optParser = OptionParser()
