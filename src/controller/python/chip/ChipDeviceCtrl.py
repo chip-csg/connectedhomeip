@@ -147,12 +147,11 @@ class ChipDeviceController(object):
 
     def ConnectBLE(self, discriminator, setupPinCode, nodeid):
         self.state = DCState.RENDEZVOUS_ONGOING
-        res = self._ChipStack.CallAsync(
+        return self._ChipStack.CallAsync(
             lambda: self._dmLib.pychip_DeviceController_ConnectBLE(
                 self.devCtrl, discriminator, setupPinCode, nodeid)
         )
-        self.GetPASEData()
-        return res
+
 
     def CloseBLEConnection(self):
         return self._ChipStack.Call(
