@@ -697,6 +697,13 @@ CHIP_ERROR DeviceCommissioner::Shutdown()
     return CHIP_NO_ERROR;
 }
 
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+PASESession *DeviceCommissioner::GetPASESession()
+{   
+    return &mRendezvousSession->GetPairingSession();
+}
+#endif //CSG_TRACE_END
+
 CHIP_ERROR DeviceCommissioner::PairDevice(NodeId remoteDeviceId, RendezvousParameters & params)
 {
     CHIP_ERROR err                     = CHIP_NO_ERROR;
@@ -885,8 +892,10 @@ void DeviceCommissioner::FreeRendezvousSession()
     if (mRendezvousSession != nullptr)
     {
         mNextKeyId = mRendezvousSession->GetNextKeyId();
+        /* CSG Top Secret Work: please ignore
         chip::Platform::Delete(mRendezvousSession);
         mRendezvousSession = nullptr;
+        */
     }
 }
 

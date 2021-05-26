@@ -42,7 +42,7 @@
 #include <support/CodeUtils.h>
 #include <support/SafeInt.h>
 #include <transport/SecureSessionMgr.h>
-
+#include <csg_test_harness/constants.h>
 namespace chip {
 
 using namespace Crypto;
@@ -98,7 +98,18 @@ void PASESession::Clear()
         mExchangeCtxt->Release();
         mExchangeCtxt = nullptr;
     }
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+    mPASETrace = std::map<std::string, std::map<std::string, std::string>>();
+    random_initiator_map = {};
+#endif //CSG_TRACE_END
 }
+
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+std::map<std::string, std::map<std::string, std::string>> * PASESession::getPASETrace()
+{
+    return &mPASETrace;
+}
+#endif //CSG_TRACE_END
 
 CHIP_ERROR PASESession::Serialize(PASESessionSerialized & output)
 {
@@ -345,8 +356,13 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
     SuccessOrExit(err);
 
     req->SetDataLength(kPBKDFParamRandomNumberSize);
-
     // Update commissioning hash with the pbkdf2 param request that's being sent.
+
+#ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+    random_initiator_map.insert(std::make_pair(randomFromInitiator_str_key, stringForDataBuffer(req->Start(), req->DataLength()))); 
+    mPASETrace.insert (std::make_pair(PBKDFParamRequest_str_key,random_initiator_map));
+#endif //CSG_TRACE_END
+
     err = mCommissioningHash.AddData(req->Start(), req->DataLength());
     SuccessOrExit(err);
 

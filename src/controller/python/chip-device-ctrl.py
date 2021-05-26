@@ -41,6 +41,8 @@ from cmd import Cmd
 from chip.ChipBleUtility import FAKE_CONN_OBJ_VALUE
 from chip.setup_payload import SetupPayload
 from xmlrpc.server import SimpleXMLRPCServer
+from enum import Enum
+from typing import Any, Dict,Optional
 
 # Extend sys.path with one or more directories, relative to the location of the
 # running script, in which the chip package might be found .  This makes it
@@ -68,6 +70,16 @@ if platform.system() == 'Darwin':
     from chip.ChipCoreBluetoothMgr import CoreBluetoothManager as BleManager
 elif sys.platform.startswith('linux'):
     from chip.ChipBluezMgr import BluezManager as BleManager
+
+
+class StatusCodeEnum(Enum):
+    SUCCESS = 0
+    FAILED =  1
+
+class RPCResponseKeyEnum(Enum):
+    STATUS = "status"
+    RESULT = "result"
+    ERROR  = "error"
 
 # The exceptions for CHIP Device Controller CLI
 
@@ -417,7 +429,11 @@ class DeviceMgrCmd(Cmd):
                 self.devCtrl.ConnectIP(args[1].encode(
                     "utf-8"), int(args[2]), nodeid)
             elif args[0] == "-ble" and len(args) >= 3:
-                self.devCtrl.ConnectBLE(int(args[1]), int(args[2]), nodeid)
+                result = self.devCtrl.ConnectBLE(int(args[1]), int(args[2]), nodeid)
+            elif args[0] == '-qr' and len(args) >=2:
+                print("Parsing QR code {}".format(args[1]))
+                setupPayload = SetupPayload().ParseQrCode(args[1])
+                self.ConnectFromSetupPayload(setupPayload, nodeid)
             else:
                 print("Usage:")
                 self.do_help("connect SetupPinCode")
@@ -617,15 +633,68 @@ class DeviceMgrCmd(Cmd):
 device_manager = DeviceMgrCmd(rendezvousAddr=None,
                              controllerNodeId=0, bluetoothAdapter=0)
 
+
 # CHIP commands needed by the Harness Tool
 def echo_alive(message):
     print(message)
     return message
 
-def ble_scan():
-    device_manager.do_blescan("")
-    #TODO: Return a list of available devices
-    return "Scan started"
+def ble_scan() -> Dict[Any, Any]:
+    try:
+        __check_supported_os()
+        device_manager.do_blescan("")
+        
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = __get_peripheral_list())
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
+def __get_peripheral_list() -> Dict[Any, Any]:
+    device_list = []
+    for device in device_manager.bleMgr.peripheral_list:
+        device_detail = {}       
+        devIdInfo = device_manager.bleMgr.get_peripheral_devIdInfo(device)
+        if devIdInfo != None:
+            device_detail['name'] = str(device.Name)
+            device_detail['id'] = str(device.device_id)
+            device_detail['rssi'] = str(device.RSSI)
+            device_detail['address'] = str(device.Address)
+            device_detail['pairing_state'] = devIdInfo.pairingState
+            device_detail['discriminator'] = devIdInfo.discriminator
+            device_detail['vendor_id'] = devIdInfo.vendorId
+            device_detail['product_id'] = devIdInfo.productId
+            if device.ServiceData:
+                for advuuid in device.ServiceData:
+                    device_detail['adv_uuid'] = str(advuuid)
+            device_list.append(device_detail)
+    return device_list
+
+def ble_connect(discriminator: int, pin_code: int, node_id: int) -> Dict[str, any]:
+    try:
+        __check_supported_os()
+        device_manager.devCtrl.ConnectBLE(discriminator, pin_code, node_id)
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+    except exceptions.ChipStackException as ex:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
+def ip_connect(ip_address: string, pin_code: int, node_id: int) -> Dict[str, any]:
+    try:
+        __check_supported_os()
+        device_manager.devCtrl.ConnectIP(ip_address.encode("utf-8"), pin_code, node_id)
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+    except exceptions.ChipStackException as ex:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(ex))
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
+def get_pase_data() -> Dict[Any, Any]:
+    try:
+        __check_supported_os()
+        pase_data = device_manager.devCtrl.GetPASEData()
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = pase_data)
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def ble_perf() -> dict:
     result = device_manager.bleMgr.perf_scan(target_value="02:4D:73:E4:F6:71", timeout=30)
@@ -641,18 +710,30 @@ def pase_scan() -> dict:
 
 
 def start_rpc_server():
-    ble_perf()
-    # with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
-    #     server.register_function(echo_alive)
-    #     server.register_function(ble_scan)
-    #     server.register_function(pase_scan)
-    #     server.register_multicall_functions()
-    #     print('Serving XML-RPC on localhost port 5000')
-    #     try:
-    #         server.serve_forever()
-    #     except KeyboardInterrupt:
-    #         print("\nKeyboard interrupt received, exiting.")
-    #         sys.exit(0)
+    with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
+        server.register_function(echo_alive)
+        server.register_function(ble_scan)
+        server.register_function(ble_connect)
+        server.register_function(ip_connect)
+        server.register_function(get_pase_data)
+        server.register_multicall_functions()
+        print('Serving XML-RPC on localhost port 5000')
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            print("\nKeyboard interrupt received, exiting.")
+            sys.exit(0)
+
+def __get_response_dict(status: StatusCodeEnum, result: Optional[Dict[Any, Any]] = None, error:Optional[str] = None) -> Dict [str, Any]:
+    return { RPCResponseKeyEnum.STATUS.value : status.value, RPCResponseKeyEnum.RESULT.value : result, RPCResponseKeyEnum.ERROR.value : error }
+
+def __check_supported_os()-> bool:
+    if platform.system().lower() == 'darwin':
+        raise Exception(platform.system() + " not supported")
+    elif sys.platform.lower().startswith('linux'):
+        return True
+
+    raise Exception("OS Not Supported")
 
 ######--------------------------------------------------######
 
