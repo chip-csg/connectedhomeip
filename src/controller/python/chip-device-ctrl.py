@@ -688,6 +688,14 @@ def ip_connect(ip_address: string, pin_code: int, node_id: int) -> Dict[str, any
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
+def get_pase_data() -> Dict[Any, Any]:
+    try:
+        __check_supported_os()
+        pase_data = device_manager.devCtrl.GetPASEData()
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = pase_data)
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
 def start_rpc_server():
 
     with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
@@ -695,6 +703,7 @@ def start_rpc_server():
         server.register_function(ble_scan)
         server.register_function(ble_connect)
         server.register_function(ip_connect)
+        server.register_function(get_pase_data)
         server.register_multicall_functions()
         print('Serving XML-RPC on localhost port 5000')
         try:
