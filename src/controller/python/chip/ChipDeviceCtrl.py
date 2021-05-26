@@ -35,7 +35,7 @@ from .clusters.CHIPClusters import *
 from .interaction_model import delegate as im
 from .exceptions import *
 import enum
-
+import yaml
 
 __all__ = ["ChipDeviceController"]
 
@@ -153,10 +153,14 @@ class ChipDeviceController(object):
                 self.devCtrl, discriminator, setupPinCode, nodeid)
         )
         
-        res =  self._ChipStack.Call(
+        pase_yaml_str =  self._ChipStack.Call(
         lambda: self._dmLib.pychip_DeviceController_GetPASEData(self.devCtrl))
-        print("### Get PASE Data returned: " + str(res))
-        return res
+        pase_dict = yaml.safe_load(pase_yaml_str)
+        if pase_dict is None:
+            print("Failed to parse yaml data returned")
+        print(f"### PASE Dict returned: {pase_dict}")
+        return pase_yaml_str
+
 
     def CloseBLEConnection(self):
         return self._ChipStack.Call(

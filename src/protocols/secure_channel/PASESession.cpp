@@ -98,14 +98,17 @@ void PASESession::Clear()
         mExchangeCtxt->Release();
         mExchangeCtxt = nullptr;
     }
-
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     mPASETrace = std::map<std::string, std::map<std::string, std::string>>();
+#endif //CSG_TRACE_END
 }
 
-std::map<std::string, std::map<std::string, std::string>> *PASESession::getPASETrace()
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+std::map<std::string, std::map<std::string, std::string>> * PASESession::getPASETrace()
 {
     return &mPASETrace;
 }
+#endif //CSG_TRACE_END
 
 CHIP_ERROR PASESession::Serialize(PASESessionSerialized & output)
 {
@@ -341,16 +344,26 @@ CHIP_ERROR PASESession::DeriveSecureSession(const uint8_t * info, size_t info_le
     return session.InitFromSecret(mKe, mKeLen, nullptr, 0, info, info_len);
 }
 
+std::string stringForDataBuffer(uint8_t *start, uint16_t data_length)
+{
+    uint16_t total_length = (uint16_t)((data_length * CHARS_PER_BYTE) + 1);
+    char * data_string_ptr = (char *)malloc(total_length * sizeof(char));
+    std::string data_string;
+    for (uint16_t i=0; i < data_length; i++) {
+        sprintf(data_string_ptr+i*2, "%02x", start[i]);
+    }
+    data_string_ptr[data_length*2] = '\0';
+    data_string = std::string(data_string_ptr, total_length);
+    return data_string;
+}
+
 CHIP_ERROR PASESession::SendPBKDFParamRequest()
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
 #ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
-    const size_t str_len = kPBKDFParamRandomNumberSize * CHARS_PER_BYTE + 1;
-    char * randomFromInitiator_ptr = (char *)malloc((str_len) * sizeof(char));
-    std::string randomFromInitiator_str_key ("RandomFromInitiator");
-    std::string PBKDFParamRequest_str_key ("PBKDFParamRequest");
-    std::string randomFromInitiator_str_value;
+    //const size_t str_len = kPBKDFParamRandomNumberSize * CHARS_PER_BYTE + 1;
     std::map<std::string,std::string> random_initiator_map = {};
+    std::string random_number_string;
 #endif //CSG_TRACE_END
 
     System::PacketBufferHandle req = System::PacketBufferHandle::New(kPBKDFParamRandomNumberSize);
@@ -363,14 +376,10 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
 
 #ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     // Update commissioning hash with the pbkdf2 param request that's being sent.
-    for (uint16_t i=0; i < req->DataLength(); i++) {
-        sprintf(randomFromInitiator_ptr+i*2, "%02x", req->Start()[i]);
-    }
-    randomFromInitiator_ptr[(req->DataLength())*2] = '\0';
-    randomFromInitiator_str_value = std::string(randomFromInitiator_ptr, str_len);
-    random_initiator_map.insert(std::make_pair(randomFromInitiator_str_key, randomFromInitiator_str_value)); 
+    random_number_string = stringForDataBuffer(req->Start(), req->DataLength()); 
+    random_initiator_map.insert(std::make_pair(randomFromInitiator_str_key, random_number_string)); 
     mPASETrace.insert (std::make_pair(PBKDFParamRequest_str_key,random_initiator_map));
-    ChipLogDetail(Ble, "### Saved msg: %s", randomFromInitiator_ptr);
+    ChipLogDetail(Ble, "### Saved msg: %s", random_number_string.c_str());
 #endif //CSG_TRACE_END
 
     err = mCommissioningHash.AddData(req->Start(), req->DataLength());
