@@ -44,6 +44,7 @@
 #include <support/SafeInt.h>
 #include <transport/SecureSessionMgr.h>
 #include <csg_test_harness/constants.h>
+#include <iostream>
 namespace chip {
 
 using namespace Crypto;
@@ -112,6 +113,7 @@ void PASESession::CloseExchange()
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     mPASETrace = std::map<std::string, std::map<std::string, std::string>>();
     initiator_message_map = {};
+    responder_message_map = {};
 #endif //CSG_TRACE_END
 }
 
@@ -496,8 +498,9 @@ CHIP_ERROR PASESession::HandlePBKDFParamResponse(const System::PacketBufferHandl
         SuccessOrExit(err);
     }
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
-    responder_message_map.insert(std::make_pair(messageFromResponder_str_key, stringForDataBuffer(resp, msg->DataLength()))); 
+    responder_message_map.insert(std::make_pair(messageFromResponder_str_key, stringForDataBuffer(msg->Start(), msg->DataLength())));
     mPASETrace.insert (std::make_pair(PBKDFParamResponse_str_key,responder_message_map));
+    std::cout << "From mTrace: "<< mPASETrace[PBKDFParamResponse_str_key][messageFromResponder_str_key] << std::endl;
 #endif //CSG_TRACE_END
     err = SendMsg1();
     SuccessOrExit(err);

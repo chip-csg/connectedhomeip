@@ -147,11 +147,12 @@ class ChipDeviceController(object):
 
     def ConnectBLE(self, discriminator, setupPinCode, nodeid):
         self.state = DCState.RENDEZVOUS_ONGOING
-        return self._ChipStack.CallAsync(
+        res = self._ChipStack.CallAsync(
             lambda: self._dmLib.pychip_DeviceController_ConnectBLE(
                 self.devCtrl, discriminator, setupPinCode, nodeid)
         )
-
+        self.GetPASEData()
+        return res
 
     def CloseBLEConnection(self):
         return self._ChipStack.Call(
@@ -174,6 +175,7 @@ class ChipDeviceController(object):
             print("ERROR: Failed to parse yaml data returned")
             raise ValueError(f"Invalid PASE yaml string returned: {pase_yaml_str}")
         
+        print(f"### PASE String returned: {pase_yaml_str}")
         print(f"### PASE Dict returned: {pase_dict}")
         return pase_dict
 

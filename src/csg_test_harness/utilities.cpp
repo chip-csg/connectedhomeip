@@ -17,7 +17,7 @@
 
 #include "constants.h"
 #include <string.h>
-
+#include <iostream>
 // Request Parameter Keys
 std::string PBKDFParamRequest_str_key ("PBKDFParamRequest");
 std::string messageFromInitiator_str_key ("MessageFromInitiator");
@@ -39,12 +39,15 @@ const char * yaml_string_for_map(std::map<std::string, std::map<std::string, std
             result_yaml_str += y.first;
             result_yaml_str += ": ";
             result_yaml_str += y.second;
+            std::cout << "Key: " << y.first << " Value: " << y.second << std::endl;
             result_yaml_str += "\n";
         }
     }
 
     char * response = new char [result_yaml_str.length()+1];
     strcpy(response, result_yaml_str.c_str());
+    std::cout << "### Sending string " << response << std::endl;
+    std::cout << "###" << std::endl;
     return response;
 }
 
@@ -57,6 +60,7 @@ std::string stringForDataBuffer(const uint8_t *start, uint16_t data_length)
         sprintf(data_string_ptr+i*2, "%02x", start[i]);
     }
     data_string_ptr[data_length*2] = '\0';
-    data_string = std::string(data_string_ptr, total_length);
+    data_string = std::string(data_string_ptr);
+    std::cout << "### Saved: " + data_string << std::endl;
     return data_string;
 }
