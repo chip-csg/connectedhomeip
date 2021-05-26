@@ -215,31 +215,9 @@ void pychip_DeviceController_SetLogFilter(uint8_t category)
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
 const char * pychip_DeviceController_GetPASEData(chip::Controller::DeviceCommissioner * devCtrl)
 {
-    ChipLogProgress(Controller, "Fetching the pase session");
     PASESession *pase_session = devCtrl->GetPASESession();
     std::map<std::string, std::map<std::string, std::string>> *paseTrace = pase_session->getPASETrace();
-    std::string result_yaml_str = ""
-    for (auto& x: *paseTrace) {
-        // for each message
-        result_yaml_str += x.first;
-        result_yaml_str += ":\n";
-        for (auto& y: x.second) {
-            // for each message item
-            result_yaml_str += "  "; // indent 2 spaces for nested hash
-            result_yaml_str += y.first;
-            result_yaml_str += ": ";
-            result_yaml_str += y.second;
-            result_yaml_str += "\n";
-        }
-    }
-
-    char * response = new char [result_yaml_str.length()+1];
-    std::strcpy (response, result_yaml_str.c_str());
-
-    ChipLogProgress(Controller, "Fetched pase session:%x", &pase_session);
-    ChipLogProgress(Controller, "Fetching Pase Data: %s", result_yaml_str.c_str());
-
-    return response;
+    return yaml_string_for_map(paseTrace);
 }
 #endif //CSG_TRACE_END
 

@@ -26,9 +26,7 @@
 
 #pragma once
 
-#if CHIP_CSG_TEST_HARNESS
 #include <csg_test_harness/constants.h>
-#endif
 
 #include <crypto/CHIPCryptoPAL.h>
 #if CHIP_CRYPTO_HSM
@@ -79,7 +77,7 @@ public:
     PASESession(const PASESession &) = delete;
     PASESession & operator=(const PASESession &) = default;
     PASESession & operator=(PASESession &&) = default;
-#ifdef CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+#ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     std::map< std::string, std::map< std::string, std::string>> *getPASETrace();
 #endif //CSG_TRACE_END
     virtual ~PASESession();
@@ -277,7 +275,7 @@ private:
 
     Protocols::SecureChannel::MsgType mNextExpectedMsg = Protocols::SecureChannel::MsgType::PASE_Spake2pError;
 
-#ifdef CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+#ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     std::map< std::string, std::map< std::string, std::string>> mPASETrace;
 #endif //CSG_TRACE_END
 

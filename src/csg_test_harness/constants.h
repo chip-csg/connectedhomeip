@@ -16,11 +16,13 @@
  */
 
 #pragma once
-#ifdef CHIP_CSG_TEST_HARNESS
+#define CHIP_CSG_TEST_HARNESS 1
 
-#define CHARS_PER_BYTE 2
+#define CHARS_PER_BYTE (uint16_t)2
 #include <map>
-#include <string.h>
+#include <string>
 #include <stdlib.h>
 
-#endif
+const char * yaml_string_for_map(std::map<std::string, std::map<std::string, std::string>> *trace_map);
+extern std::string PBKDFParamRequest_str_key;
+extern std::string randomFromInitiator_str_key;
