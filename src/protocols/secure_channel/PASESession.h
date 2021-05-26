@@ -249,7 +249,14 @@ private:
 
 #ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     std::map< std::string, std::map< std::string, std::string>> mPASETrace;
-    std::map<std::string,std::string> random_initiator_map;
+    // Request parameter maps
+    std::map<std::string,std::string> initiator_message_map;
+    
+    // Response parameter maps
+    std::map<std::string,std::string> responder_message_map;
+    std::map<std::string,std::string> responder_iterations_map;
+    std::map<std::string,std::string> responder_salt_map;
+
 #endif //CSG_TRACE_END
 
 #ifdef ENABLE_HSM_SPAKE
