@@ -41,3 +41,16 @@ const char * yaml_string_for_map(std::map<std::string, std::map<std::string, std
     strcpy(response, result_yaml_str.c_str());
     return response;
 }
+
+std::string stringForDataBuffer(uint8_t *start, uint16_t data_length)
+{
+    uint16_t total_length = (uint16_t)((data_length * CHARS_PER_BYTE) + 1);
+    char * data_string_ptr = (char *)malloc(total_length * sizeof(char));
+    std::string data_string;
+    for (uint16_t i=0; i < data_length; i++) {
+        sprintf(data_string_ptr+i*2, "%02x", start[i]);
+    }
+    data_string_ptr[data_length*2] = '\0';
+    data_string = std::string(data_string_ptr, total_length);
+    return data_string;
+}
