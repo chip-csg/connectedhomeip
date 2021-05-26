@@ -83,12 +83,21 @@ async def main():
     # Wait for the controller to start the rpc server
     time.sleep(1)
 
+    discriminator = 3840
+    pin_code = 20202021
+    node_id = 1234
+
     # Invoke RPCs
     try: 
         print("Calling RPCs")
         print("echo_alive Response:" + server_1.echo_alive("Test"))
-        result = server_1.pase_scan()
-        print(result)
+        scan = server_1.ble_scan()
+        print(f"scan: {scan}")
+        connect = server_1.ble_connect(discriminator, pin_code, node_id)
+        print(f"connect: {connect}")
+        pase_data = server_1.get_pase_data()
+        print(f"pase_data: {pase_data}")
+
     except Exception as e:
         print(e)
 

@@ -640,6 +640,7 @@ def echo_alive(message):
     return message
 
 def ble_scan() -> Dict[Any, Any]:
+    print('Running: ble_scan')
     try:
         __check_supported_os()
         device_manager.do_blescan("")
@@ -649,6 +650,7 @@ def ble_scan() -> Dict[Any, Any]:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def __get_peripheral_list() -> Dict[Any, Any]:
+    print('Running: __get_peripheral_list')
     device_list = []
     for device in device_manager.bleMgr.peripheral_list:
         device_detail = {}       
@@ -669,6 +671,7 @@ def __get_peripheral_list() -> Dict[Any, Any]:
     return device_list
 
 def ble_connect(discriminator: int, pin_code: int, node_id: int) -> Dict[str, any]:
+    print('Running: ble_connect')
     try:
         __check_supported_os()
         device_manager.devCtrl.ConnectBLE(discriminator, pin_code, node_id)
@@ -679,6 +682,7 @@ def ble_connect(discriminator: int, pin_code: int, node_id: int) -> Dict[str, an
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def ip_connect(ip_address: string, pin_code: int, node_id: int) -> Dict[str, any]:
+    print('Running: ip_connect')
     try:
         __check_supported_os()
         device_manager.devCtrl.ConnectIP(ip_address.encode("utf-8"), pin_code, node_id)
@@ -689,6 +693,8 @@ def ip_connect(ip_address: string, pin_code: int, node_id: int) -> Dict[str, any
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def get_pase_data() -> Dict[Any, Any]:
+    print('Running: get_pase_data')
+    print('')
     try:
         __check_supported_os()
         pase_data = device_manager.devCtrl.GetPASEData()
@@ -697,10 +703,12 @@ def get_pase_data() -> Dict[Any, Any]:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def ble_perf() -> dict:
+    print('Running: ble_perf')
     result = device_manager.bleMgr.perf_scan(target_value="02:4D:73:E4:F6:71", timeout=30)
     print(result)
 
 def pase_scan() -> dict:
+    print('Running: pase_scan')
     discriminator = "3840"
     pin_code = "20202021"
     node_id = 1234
@@ -710,7 +718,7 @@ def pase_scan() -> dict:
 
 
 def start_rpc_server():
-    with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
+    with SimpleXMLRPCServer(("0.0.0.0", 5000), allow_none=True) as server:
         server.register_function(echo_alive)
         server.register_function(ble_scan)
         server.register_function(ble_connect)
@@ -729,10 +737,13 @@ def __get_response_dict(status: StatusCodeEnum, result: Optional[Dict[Any, Any]]
 
 def __check_supported_os()-> bool:
     if platform.system().lower() == 'darwin':
+        print("Darwin based OS not supported")
         raise Exception(platform.system() + " not supported")
     elif sys.platform.lower().startswith('linux'):
+        print("Linux based OS Here we go")
         return True
 
+    print(f"{sys.platform.lower()} is not a supported OS")
     raise Exception("OS Not Supported")
 
 ######--------------------------------------------------######
@@ -740,73 +751,73 @@ def __check_supported_os()-> bool:
 def main():
     start_rpc_server()
     
-    # # Never reach here
-    # optParser = OptionParser()
-    # optParser.add_option(
-    #     "-r",
-    #     "--rendezvous-addr",
-    #     action="store",
-    #     dest="rendezvousAddr",
-    #     help="Device rendezvous address",
-    #     metavar="<ip-address>",
-    # )
-    # optParser.add_option(
-    #     "-n",
-    #     "--controller-nodeid",
-    #     action="store",
-    #     dest="controllerNodeId",
-    #     default=0,
-    #     type='int',
-    #     help="Controller node ID",
-    #     metavar="<nodeid>",
-    # )
+    # Never reach here
+    optParser = OptionParser()
+    optParser.add_option(
+        "-r",
+        "--rendezvous-addr",
+        action="store",
+        dest="rendezvousAddr",
+        help="Device rendezvous address",
+        metavar="<ip-address>",
+    )
+    optParser.add_option(
+        "-n",
+        "--controller-nodeid",
+        action="store",
+        dest="controllerNodeId",
+        default=0,
+        type='int',
+        help="Controller node ID",
+        metavar="<nodeid>",
+    )
 
-    # if sys.platform.startswith("linux"):
-    #     optParser.add_option(
-    #         "-b",
-    #         "--bluetooth-adapter",
-    #         action="store",
-    #         dest="bluetoothAdapter",
-    #         default="hci0",
-    #         type="str",
-    #         help="Controller bluetooth adapter ID",
-    #         metavar="<bluetooth-adapter>",
-    #     )
-    # (options, remainingArgs) = optParser.parse_args(sys.argv[1:])
+    if sys.platform.startswith("linux"):
+        optParser.add_option(
+            "-b",
+            "--bluetooth-adapter",
+            action="store",
+            dest="bluetoothAdapter",
+            default="hci0",
+            type="str",
+            help="Controller bluetooth adapter ID",
+            metavar="<bluetooth-adapter>",
+        )
+    (options, remainingArgs) = optParser.parse_args(sys.argv[1:])
 
-    # if len(remainingArgs) != 0:
-    #     print("Unexpected argument: %s" % remainingArgs[0])
-    #     sys.exit(-1)
+    if len(remainingArgs) != 0:
+        print("Unexpected argument: %s" % remainingArgs[0])
+        sys.exit(-1)
 
-    # adapterId = None
-    # if sys.platform.startswith("linux"):
-    #     if not options.bluetoothAdapter.startswith("hci"):
-    #         print(
-    #             "Invalid bluetooth adapter: {}, adapter name looks like hci0, hci1 etc.")
-    #         sys.exit(-1)
-    #     else:
-    #         try:
-    #             adapterId = int(options.bluetoothAdapter[3:])
-    #         except:
-    #             print(
-    #                 "Invalid bluetooth adapter: {}, adapter name looks like hci0, hci1 etc.")
-    #             sys.exit(-1)
+    adapterId = None
+    if sys.platform.startswith("linux"):
+        if not options.bluetoothAdapter.startswith("hci"):
+            print(
+                "Invalid bluetooth adapter: {}, adapter name looks like hci0, hci1 etc.")
+            sys.exit(-1)
+        else:
+            try:
+                adapterId = int(options.bluetoothAdapter[3:])
+            except:
+                print(
+                    "Invalid bluetooth adapter: {}, adapter name looks like hci0, hci1 etc.")
+                sys.exit(-1)
 
-    # devMgrCmd = DeviceMgrCmd(rendezvousAddr=options.rendezvousAddr,
-    #                          controllerNodeId=options.controllerNodeId, bluetoothAdapter=adapterId)
-    # print("Chip Device Controller Shell")
-    # if options.rendezvousAddr:
-    #     print("Rendezvous address set to %s" % options.rendezvousAddr)
+    devMgrCmd = DeviceMgrCmd(rendezvousAddr=options.rendezvousAddr,
+                             controllerNodeId=options.controllerNodeId, bluetoothAdapter=adapterId)
+    print("Chip Device Controller Shell")
+    if options.rendezvousAddr:
+        print("Rendezvous address set to %s" % options.rendezvousAddr)
 
-    # # Adapter ID will always be 0
-    # if adapterId != 0:
-    #     print("Bluetooth adapter set to hci{}".format(adapterId))
-    # print()
+    # Adapter ID will always be 0
+    if adapterId != 0:
+        print("Bluetooth adapter set to hci{}".format(adapterId))
+    print()
 
-    # try:
-    #     devMgrCmd.cmdloop()
-    # except KeyboardInterrupt:
-    #     print("\nQuitting")
+    try:
+        devMgrCmd.cmdloop()
+    except KeyboardInterrupt:
+        print("\nQuitting")
 
     sys.exit(0)
 
