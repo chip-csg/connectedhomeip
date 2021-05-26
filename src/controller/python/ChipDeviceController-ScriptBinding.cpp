@@ -83,6 +83,7 @@ CHIP_ERROR pychip_DeviceController_DeleteDeviceController(chip::Controller::Devi
 CHIP_ERROR
 pychip_DeviceController_GetAddressAndPort(chip::Controller::DeviceCommissioner * devCtrl, chip::NodeId nodeId, char * outAddress,
                                           uint64_t maxAddressLen, uint16_t * outPort);
+
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
 const char * pychip_DeviceController_GetPASEData(chip::Controller::DeviceCommissioner * devCtrl);
 #endif //CSG_TRACE_END
