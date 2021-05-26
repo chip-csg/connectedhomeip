@@ -24,5 +24,7 @@
 #include <stdlib.h>
 
 const char * yaml_string_for_map(std::map<std::string, std::map<std::string, std::string>> *trace_map);
+std::string stringForDataBuffer(uint8_t *start, uint16_t data_length);
+
 extern std::string PBKDFParamRequest_str_key;
 extern std::string randomFromInitiator_str_key;
