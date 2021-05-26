@@ -45,6 +45,7 @@
 #include <transport/SessionEstablishmentDelegate.h>
 #include <transport/raw/MessageHeader.h>
 #include <transport/raw/PeerAddress.h>
+
 namespace chip {
 
 extern const char * kSpake2pI2RSessionInfo;
@@ -77,6 +78,7 @@ public:
     PASESession(const PASESession &) = delete;
     PASESession & operator=(const PASESession &) = default;
     PASESession & operator=(PASESession &&) = default;
+
 #ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     std::map< std::string, std::map< std::string, std::string>> *getPASETrace();
 #endif //CSG_TRACE_END
