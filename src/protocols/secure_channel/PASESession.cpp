@@ -111,6 +111,7 @@ void PASESession::CloseExchange()
     }
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     mPASETrace = std::map<std::string, std::map<std::string, std::string>>();
+    random_initiator_map = {};
 #endif //CSG_TRACE_END
 }
 
@@ -351,19 +352,6 @@ CHIP_ERROR PASESession::DeriveSecureSession(SecureSession & session, SecureSessi
                                   SecureSession::SessionInfoType::kSessionEstablishment, role);
 }
 
-std::string stringForDataBuffer(uint8_t *start, uint16_t data_length)
-{
-    uint16_t total_length = (uint16_t)((data_length * CHARS_PER_BYTE) + 1);
-    char * data_string_ptr = (char *)malloc(total_length * sizeof(char));
-    std::string data_string;
-    for (uint16_t i=0; i < data_length; i++) {
-        sprintf(data_string_ptr+i*2, "%02x", start[i]);
-    }
-    data_string_ptr[data_length*2] = '\0';
-    data_string = std::string(data_string_ptr, total_length);
-    return data_string;
-}
-
 CHIP_ERROR PASESession::SendPBKDFParamRequest()
 {
 #ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
@@ -378,13 +366,11 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
     ReturnErrorOnFailure(DRBG_get_bytes(req->Start(), kPBKDFParamRandomNumberSize));
 
     req->SetDataLength(kPBKDFParamRandomNumberSize);
+    // Update commissioning hash with the pbkdf2 param request that's being sent.
 
 #ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
-    // Update commissioning hash with the pbkdf2 param request that's being sent.
-    random_number_string = stringForDataBuffer(req->Start(), req->DataLength()); 
-    random_initiator_map.insert(std::make_pair(randomFromInitiator_str_key, random_number_string)); 
+    random_initiator_map.insert(std::make_pair(randomFromInitiator_str_key, stringForDataBuffer(req->Start(), req->DataLength()))); 
     mPASETrace.insert (std::make_pair(PBKDFParamRequest_str_key,random_initiator_map));
-    ChipLogDetail(Ble, "### Saved msg: %s", random_number_string.c_str());
 #endif //CSG_TRACE_END
 
     ReturnErrorOnFailure(mCommissioningHash.AddData(req->Start(), req->DataLength()));
