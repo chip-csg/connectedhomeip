@@ -855,6 +855,10 @@ def get_pase_data() -> Dict[Any, Any]:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def start_rpc_server():
+<<<<<<< HEAD
+=======
+
+>>>>>>> 23ee9d85e8 (Fix RPC to allow none values)
     with SimpleXMLRPCServer(("0.0.0.0", 5000), allow_none=True) as server:
         server.register_function(echo_alive)
         server.register_function(ble_scan)
