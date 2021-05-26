@@ -17,8 +17,14 @@
 
 #include "constants.h"
 #include <string.h>
-std::string randomFromInitiator_str_key ("RandomFromInitiator");
+
+// Request Parameter Keys
 std::string PBKDFParamRequest_str_key ("PBKDFParamRequest");
+std::string messageFromInitiator_str_key ("MessageFromInitiator");
+
+// Response Parameter Keys
+std::string messageFromResponder_str_key ("MessageFromResponder");
+std::string PBKDFParamResponse_str_key ("PBKDFParamResponse");
 
 const char * yaml_string_for_map(std::map<std::string, std::map<std::string, std::string>> *trace_map)
 {
@@ -42,7 +48,7 @@ const char * yaml_string_for_map(std::map<std::string, std::map<std::string, std
     return response;
 }
 
-std::string stringForDataBuffer(uint8_t *start, uint16_t data_length)
+std::string stringForDataBuffer(const uint8_t *start, uint16_t data_length)
 {
     uint16_t total_length = (uint16_t)((data_length * CHARS_PER_BYTE) + 1);
     char * data_string_ptr = (char *)malloc(total_length * sizeof(char));
