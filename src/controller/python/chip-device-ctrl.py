@@ -642,7 +642,7 @@ def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
         err = device_manager.devCtrl.ResolveNode(fabric_id, node_id)
         if err != 0:
             return __get_response_dict(status = StatusCodeEnum.FAILED, error = f"Failed to resolve node, with error code: {err}")
-            
+
         address = device_manager.devCtrl.GetAddressAndPort(node_id)
         if address is not None:
             address = "{}:{}".format(
@@ -734,7 +734,7 @@ def ip_connect(ip_address: string, pin_code: int, node_id: int) -> Dict[str, Any
 
 
 def start_rpc_server():
-    with SimpleXMLRPCServer(("0.0.0.0", 5000)) as server:
+    with SimpleXMLRPCServer(("0.0.0.0", 5000), allow_none=True) as server:
         server.register_function(echo_alive)
         server.register_function(ble_scan)
         server.register_function(ble_connect)
@@ -750,7 +750,7 @@ def start_rpc_server():
             print("\nKeyboard interrupt received, exiting.")
             sys.exit(0)
 
-def __get_response_dict(status: StatusCodeEnum, result: Optional[Dict[Any, Any]] = "", error:Optional[str] = "") -> Dict [str, Any]:
+def __get_response_dict(status: StatusCodeEnum, result: Optional[Dict[Any, Any]] = None, error:Optional[str] = None) -> Dict [str, Any]:
     return { RPCResponseKeyEnum.STATUS.value : status.value, RPCResponseKeyEnum.RESULT.value : result, RPCResponseKeyEnum.ERROR.value : error }
 
 def __check_supported_os()-> bool:
