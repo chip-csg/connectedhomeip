@@ -640,14 +640,14 @@ def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
     try:
         __check_supported_os()
         err = device_manager.devCtrl.ResolveNode(fabric_id, node_id)
-        if err == 0:
-            address = device_manager.devCtrl.GetAddressAndPort(int(args[1]))
-            if address is not None:
-                address = "{}:{}".format(
-                    *address)  
-                return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = {'address': address}) 
-            else:
-                return __get_response_dict(status = StatusCodeEnum.FAILED, error = "address not found")
+        if err != 0:
+            return __get_response_dict(status = StatusCodeEnum.FAILED, error = f"Failed to resolve node, with error code: {err}")
+            
+        address = device_manager.devCtrl.GetAddressAndPort(node_id)
+        if address is not None:
+            address = "{}:{}".format(
+                *address)  
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = {'address': address}) 
             
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
