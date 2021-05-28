@@ -537,6 +537,7 @@ CHIP_ERROR PASESession::SendMsg1()
     ReturnErrorOnFailure(mExchangeCtxt->SendMessage(Protocols::SecureChannel::MsgType::PASE_Spake2p1, bbuf.Finalize(),
                                                     SendFlags(SendMessageFlags::kExpectResponse)));
     ChipLogDetail(Ble, "Sent spake2p msg1");
+
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
         pake_1_message_map.insert(std::make_pair(PAKE_1_Pa_key, stringForDataBuffer(&X[0], (uint16_t)X_len)));
         pake_1_message_map.insert(std::make_pair(PAKE_1_key_id_key, std::to_string(mConnectionState.GetLocalKeyID())));

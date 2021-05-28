@@ -780,8 +780,7 @@ def __check_supported_os()-> bool:
 def main():
     start_rpc_server()
     
-
-    # Never Executed: does not return here
+    # Never Reach Here
     optParser = OptionParser()
     optParser.add_option(
         "-r",
