@@ -689,6 +689,9 @@ def ip_connect(ip_address: string, pin_code: int, node_id: int) -> Dict[str, any
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def get_pase_data() -> Dict[Any, Any]:
+    """
+    This method will return valid data only after the ble_connect, ip_connect method has been called
+    """
     try:
         __check_supported_os()
         pase_data = device_manager.devCtrl.GetPASEData()

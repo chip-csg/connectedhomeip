@@ -26,10 +26,26 @@
 const char * yaml_string_for_map(std::map<std::string, std::map<std::string, std::string>> *trace_map);
 std::string stringForDataBuffer(const uint8_t *start, uint16_t data_length);
 
+// Message Keys
+extern std::string messageFromInitiator_key;
+extern std::string messageFromResponder_key;
+
 // Request parameter keys
-extern std::string PBKDFParamRequest_str_key;
-extern std::string messageFromInitiator_str_key;
+extern std::string PBKDFParamRequest_key;
 
 // Response parameter keys
-extern std::string PBKDFParamResponse_str_key;
-extern std::string messageFromResponder_str_key;
+extern std::string PBKDFParamResponse_key;
+extern std::string PBKDFParamResponse_salt_length_key;
+extern std::string PBKDFParamResponse_iter_count_key;
+
+// PAKE Contribution (PAKE 1)
+extern std::string PAKE_1_key;
+extern std::string PAKE_1_Pa_key;
+extern std::string PAKE_1_key_id_key;
+
+// PAKE Contrib. Verification (PAKE 2)
+extern std::string PAKE_2_key;
+extern std::string PAKE_2_encryption_id_key;
+
+// PAKE Verification (PAKE 3)
+extern std::string PAKE_3_key;
