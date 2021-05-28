@@ -18,13 +18,28 @@
 #include "constants.h"
 #include <string.h>
 #include <iostream>
+
+// Message Payload (Initiator/Responder) keys
+std::string messageFromResponder_key ("MessageFromResponder");
+std::string messageFromInitiator_key ("MessageFromInitiator");
+
 // Request Parameter Keys
-std::string PBKDFParamRequest_str_key ("PBKDFParamRequest");
-std::string messageFromInitiator_str_key ("MessageFromInitiator");
+std::string PBKDFParamRequest_key ("PBKDFParamRequest");
 
 // Response Parameter Keys
-std::string messageFromResponder_str_key ("MessageFromResponder");
-std::string PBKDFParamResponse_str_key ("PBKDFParamResponse");
+std::string PBKDFParamResponse_key ("PBKDFParamResponse");
+std::string PBKDFParamResponse_salt_length_key ("SaltLength");
+std::string PBKDFParamResponse_iter_count_key ("IterCount");
+
+// PAKE Contribution (PAKE 1)
+std::string PAKE_1_key ("PAKE1");
+std::string PAKE_1_Pa_key ("PAKEPa");
+std::string PAKE_1_key_id_key ("PAKEKeyID");
+
+std::string PAKE_2_key ("PAKE2");
+std::string PAKE_2_encryption_id_key ("EncryptionID");
+
+std::string PAKE_3_key ("PAKE3");
 
 const char * yaml_string_for_map(std::map<std::string, std::map<std::string, std::string>> *trace_map)
 {

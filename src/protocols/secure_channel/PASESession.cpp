@@ -101,8 +101,11 @@ void PASESession::Clear()
     }
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     mPASETrace = std::map<std::string, std::map<std::string, std::string>>();
-    initiator_message_map = {};
-    responder_message_map = {};
+    request_message_map = {};
+    response_message_map = {};
+    pake_1_message_map = {};
+    pake_2_message_map = {};
+    pake_3_message_map = {};
 #endif //CSG_TRACE_END
 }
 
@@ -361,8 +364,8 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
     // Update commissioning hash with the pbkdf2 param request that's being sent.
 
 #ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
-    initiator_message_map.insert(std::make_pair(messageFromInitiator_str_key, stringForDataBuffer(req->Start(), req->DataLength()))); 
-    mPASETrace.insert (std::make_pair(PBKDFParamRequest_str_key,initiator_message_map));
+    request_message_map.insert(std::make_pair(messageFromInitiator_key, stringForDataBuffer(req->Start(), req->DataLength()))); 
+    mPASETrace.insert (std::make_pair(PBKDFParamRequest_key, request_message_map));
 #endif //CSG_TRACE_END
 
     err = mCommissioningHash.AddData(req->Start(), req->DataLength());
@@ -493,12 +496,14 @@ CHIP_ERROR PASESession::HandlePBKDFParamResponse(const System::PacketBufferHandl
 
         err = SetupSpake2p(static_cast<uint32_t>(iterCount), msgptr, saltlen);
         SuccessOrExit(err);
-    }
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
-    responder_message_map.insert(std::make_pair(messageFromResponder_str_key, stringForDataBuffer(msg->Start(), msg->DataLength())));
-    mPASETrace.insert (std::make_pair(PBKDFParamResponse_str_key,responder_message_map));
-    std::cout << "From mTrace: "<< mPASETrace[PBKDFParamResponse_str_key][messageFromResponder_str_key] << std::endl;
+        response_message_map.insert(std::make_pair(messageFromResponder_key, stringForDataBuffer(msg->Start(), msg->DataLength())));
+        response_message_map.insert(std::make_pair(PBKDFParamResponse_salt_length_key, std::to_string(saltlen)));
+        response_message_map.insert(std::make_pair(PBKDFParamResponse_iter_count_key, std::to_string(iterCount)));
+        mPASETrace.insert (std::make_pair(PBKDFParamResponse_key, response_message_map));
 #endif //CSG_TRACE_END
+    }
+
     err = SendMsg1();
     SuccessOrExit(err);
 
@@ -532,7 +537,12 @@ CHIP_ERROR PASESession::SendMsg1()
     ReturnErrorOnFailure(mExchangeCtxt->SendMessage(Protocols::SecureChannel::MsgType::PASE_Spake2p1, bbuf.Finalize(),
                                                     SendFlags(SendMessageFlags::kExpectResponse)));
     ChipLogDetail(Ble, "Sent spake2p msg1");
-
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+        pake_1_message_map.insert(std::make_pair(PAKE_1_Pa_key, stringForDataBuffer(&X[0], (uint16_t)X_len)));
+        pake_1_message_map.insert(std::make_pair(PAKE_1_key_id_key, std::to_string(mConnectionState.GetLocalKeyID())));
+        mPASETrace.insert (std::make_pair(PAKE_1_key, pake_1_message_map));
+        ChipLogDetail(Ble, "### Saved spake2p msg1");
+#endif //CSG_TRACE_END
     return CHIP_NO_ERROR;
 }
 
@@ -642,6 +652,11 @@ CHIP_ERROR PASESession::HandleMsg2_and_SendMsg3(const System::PacketBufferHandle
     VerifyOrExit(CanCastTo<uint16_t>(verifier_len_raw), err = CHIP_ERROR_INVALID_MESSAGE_LENGTH);
     verifier_len = static_cast<uint16_t>(verifier_len_raw);
 
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+        pake_2_message_map.insert(std::make_pair(messageFromResponder_key, stringForDataBuffer(msg->Start(), msg->DataLength())));
+        pake_2_message_map.insert(std::make_pair(PAKE_2_encryption_id_key, std::to_string(encryptionKeyId)));
+        mPASETrace.insert (std::make_pair(PAKE_2_key, pake_2_message_map));
+#endif //CSG_TRACE_END
     {
         Encoding::PacketBufferWriter bbuf(System::PacketBufferHandle::New(verifier_len));
         VerifyOrExit(!bbuf.IsNull(), err = CHIP_SYSTEM_ERROR_NO_MEMORY);
@@ -653,6 +668,10 @@ CHIP_ERROR PASESession::HandleMsg2_and_SendMsg3(const System::PacketBufferHandle
         err = mExchangeCtxt->SendMessage(Protocols::SecureChannel::MsgType::PASE_Spake2p3, bbuf.Finalize(),
                                          SendFlags(SendMessageFlags::kNone));
         SuccessOrExit(err);
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+        pake_3_message_map.insert(std::make_pair(messageFromInitiator_key, stringForDataBuffer(&verifier[0], verifier_len)));
+        mPASETrace.insert (std::make_pair(PAKE_3_key, pake_3_message_map));
+#endif //CSG_TRACE_END
     }
 
     ChipLogDetail(Ble, "Sent spake2p msg3");
