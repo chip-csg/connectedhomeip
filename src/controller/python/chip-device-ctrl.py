@@ -847,6 +847,9 @@ def qr_code_parse(qr_code):
         return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = result)
 
 def get_pase_data() -> Dict[Any, Any]:
+    """
+    This method will return valid data only after the ble_connect, ip_connect method has been called
+    """
     try:
         __check_supported_os()
         pase_data = device_manager.devCtrl.GetPASEData()

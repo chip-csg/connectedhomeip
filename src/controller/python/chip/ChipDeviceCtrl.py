@@ -173,9 +173,6 @@ class ChipDeviceController(object):
         if pase_dict is None:
             print("ERROR: Failed to parse yaml data returned")
             raise ValueError(f"Invalid PASE yaml string returned: {pase_yaml_str}")
-        
-        print(f"### PASE String returned: {pase_yaml_str}")
-        print(f"### PASE Dict returned: {pase_dict}")
         return pase_dict
 
 
