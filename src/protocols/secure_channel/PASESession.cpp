@@ -42,8 +42,8 @@
 #include <support/CodeUtils.h>
 #include <support/SafeInt.h>
 #include <transport/SecureSessionMgr.h>
+
 #include <csg_test_harness/constants.h>
-#include <iostream>
 namespace chip {
 
 using namespace Crypto;

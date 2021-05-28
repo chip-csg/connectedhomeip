@@ -17,7 +17,6 @@
 
 #include "constants.h"
 #include <string.h>
-#include <iostream>
 
 // Message Payload (Initiator/Responder) keys
 std::string messageFromResponder_key ("MessageFromResponder");
@@ -54,7 +53,6 @@ const char * yaml_string_for_map(std::map<std::string, std::map<std::string, std
             result_yaml_str += y.first;
             result_yaml_str += ": ";
             result_yaml_str += y.second;
-            std::cout << "Key: " << y.first << " Value: " << y.second << std::endl;
             result_yaml_str += "\n";
         }
     }
