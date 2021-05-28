@@ -361,6 +361,7 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
     SuccessOrExit(err);
 
     req->SetDataLength(kPBKDFParamRandomNumberSize);
+
     // Update commissioning hash with the pbkdf2 param request that's being sent.
 
 #ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
