@@ -90,6 +90,7 @@ class RPCResponseKeyEnum(Enum):
 
 # The exceptions for CHIP Device Controller CLI
 
+
 class ChipDevCtrlException(exceptions.ChipStackException):
     pass
 
