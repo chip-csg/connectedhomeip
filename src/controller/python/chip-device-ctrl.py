@@ -78,6 +78,7 @@ if platform.system() == 'Darwin':
 elif sys.platform.startswith('linux'):
     from chip.ChipBluezMgr import BluezManager as BleManager
 
+
 class StatusCodeEnum(Enum):
     SUCCESS = 0
     FAILED =  1
@@ -987,7 +988,6 @@ def start_rpc_server():
     with SimpleXMLRPCServer(("0.0.0.0", 5000), allow_none=True) as server:
         server.register_function(echo_alive)
         server.register_function(ble_scan)
-        server.register_function(qr_code_parse)
         server.register_function(resolve)
         server.register_function(ble_connect)
         server.register_function(ip_connect)
