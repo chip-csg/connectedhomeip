@@ -35,6 +35,7 @@ from .clusters.CHIPClusters import *
 from .interaction_model import delegate as im
 from .exceptions import *
 import enum
+
 import yaml
 
 __all__ = ["ChipDeviceController"]
@@ -151,7 +152,6 @@ class ChipDeviceController(object):
             lambda: self._dmLib.pychip_DeviceController_ConnectBLE(
                 self.devCtrl, discriminator, setupPinCode, nodeid)
         )
-
 
     def CloseBLEConnection(self):
         return self._ChipStack.Call(

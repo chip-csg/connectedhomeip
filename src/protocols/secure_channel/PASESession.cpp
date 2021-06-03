@@ -43,6 +43,7 @@
 #include <support/ErrorStr.h>
 #include <support/SafeInt.h>
 #include <transport/SecureSessionMgr.h>
+
 #include <csg_test_harness/constants.h>
 #include <iostream>
 namespace chip {
@@ -371,6 +372,7 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
     ReturnErrorOnFailure(DRBG_get_bytes(req->Start(), kPBKDFParamRandomNumberSize));
 
     req->SetDataLength(kPBKDFParamRandomNumberSize);
+
     // Update commissioning hash with the pbkdf2 param request that's being sent.
 
 #ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
@@ -384,9 +386,9 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
 
     ReturnErrorOnFailure(mExchangeCtxt->SendMessage(Protocols::SecureChannel::MsgType::PBKDFParamRequest, std::move(req),
                                                     SendFlags(SendMessageFlags::kExpectResponse)));
-    ChipLogDetail(Ble, "Saved msg: %s", randomFromInitiator_ptr);
 
     ChipLogDetail(SecureChannel, "Sent PBKDF param request");
+
     return CHIP_NO_ERROR;
 }
 
@@ -477,7 +479,6 @@ CHIP_ERROR PASESession::HandlePBKDFParamResponse(const System::PacketBufferHandl
 
     ChipLogDetail(SecureChannel, "Received PBKDF param response");
 
-
     VerifyOrExit(resp != nullptr, err = CHIP_ERROR_MESSAGE_INCOMPLETE);
     VerifyOrExit(resplen >= fixed_resplen, err = CHIP_ERROR_INVALID_MESSAGE_LENGTH);
 
@@ -540,6 +541,7 @@ CHIP_ERROR PASESession::SendMsg1()
     ReturnErrorOnFailure(mExchangeCtxt->SendMessage(Protocols::SecureChannel::MsgType::PASE_Spake2p1, bbuf.Finalize(),
                                                     SendFlags(SendMessageFlags::kExpectResponse)));
     ChipLogDetail(SecureChannel, "Sent spake2p msg1");
+
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
         pake_1_message_map.insert(std::make_pair(PAKE_1_Pa_key, stringForDataBuffer(&X[0], (uint16_t)X_len)));
         pake_1_message_map.insert(std::make_pair(PAKE_1_key_id_key, std::to_string(mConnectionState.GetLocalKeyID())));

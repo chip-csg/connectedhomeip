@@ -88,6 +88,7 @@ class RPCResponseKeyEnum(Enum):
 
 # The exceptions for CHIP Device Controller CLI
 
+
 class ChipDevCtrlException(exceptions.ChipStackException):
     pass
 
@@ -739,6 +740,7 @@ class DeviceMgrCmd(Cmd):
 # https://github.com/chip-csg/connectedhomeip/issues/8
 device_manager = DeviceMgrCmd(rendezvousAddr=None,
                              controllerNodeId=0, bluetoothAdapter=0)
+
 
 # CHIP commands needed by the Harness Tool
 def echo_alive(message):
