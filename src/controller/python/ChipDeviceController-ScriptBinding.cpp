@@ -218,6 +218,10 @@ const char * pychip_DeviceController_GetPASEData(chip::Controller::DeviceCommiss
 {
     PASESession *pase_session = devCtrl->GetPASESession();
     std::map<std::string, std::map<std::string, std::string>> *paseTrace = pase_session->getPASETrace();
+    /*
+    TODO: Fix the string return memory leak
+    https://github.com/chip-csg/connectedhomeip/issues/32
+    */
     return yaml_string_for_map(paseTrace);
 }
 #endif //CSG_TRACE_END

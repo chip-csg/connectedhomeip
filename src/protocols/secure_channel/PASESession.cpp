@@ -193,6 +193,10 @@ CHIP_ERROR PASESession::Init(uint16_t myKeyId, uint32_t setupCode, SessionEstabl
     Clear();
 
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+    /*
+    TODO: Fix memory leak here? 
+    https://github.com/chip-csg/connectedhomeip/issues/32
+    */
     mPASETrace =  std::map<std::string, std::map<std::string, std::string>>();
     request_message_map = {};
     response_message_map = {};
