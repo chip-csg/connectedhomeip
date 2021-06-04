@@ -881,7 +881,6 @@ def echo_alive(message):
     print(message)
     return message
 
-
 def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
     try:
         __check_supported_os()
@@ -983,6 +982,17 @@ def qr_code_parse(qr_code):
         result = SetupPayload().ParseQrCode(qr_code).Dictionary()
         return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = result)
     except Exception as e:
+         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
+def get_pase_data() -> Dict[Any, Any]:
+    """
+    This method will return valid data only after the ble_connect, ip_connect method has been called
+    """
+    try:
+        __check_supported_os()
+        pase_data = device_manager.devCtrl.GetPASEData()
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = pase_data)
+    except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def start_rpc_server():
@@ -995,6 +1005,8 @@ def start_rpc_server():
         server.register_function(zcl_add_network)
         server.register_function(zcl_enable_network)
         server.register_function(resolve)
+        server.register_function(qr_code_parse)
+        server.register_function(get_pase_data)
         server.register_multicall_functions()
         print('Serving XML-RPC on localhost port 5000')
         try:
@@ -1017,8 +1029,8 @@ def __check_supported_os()-> bool:
 
 def main():
     start_rpc_server()
-    
-    # Never reach here
+
+    # Never Executed: does not return here
     optParser = OptionParser()
     optParser.add_option(
         "-r",
