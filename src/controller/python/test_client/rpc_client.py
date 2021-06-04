@@ -65,15 +65,15 @@ async def create_container(docker_image_tag: str,  port: int) -> Container:
     return container
 
 async def main():
-    # try: 
-    #     container_1 = await create_container(docker_image_tag="chip-test", port=5050)
-    # except AttributeError as e:
-    #     for container in client.containers.list():
-    #         for tag in container.image.tags:
-    #             if tag == "chip-test:latest":
-    #                 print("WARNING:Container already running, killing the container, please try running the script again")
-    #                 destroy_container(container)
-    #                 exit()
+    try: 
+        container_1 = await create_container(docker_image_tag="chip-test", port=5050)
+    except AttributeError as e:
+        for container in client.containers.list():
+            for tag in container.image.tags:
+                if tag == "chip-test:latest":
+                    print("WARNING:Container already running, killing the container, please try running the script again")
+                    destroy_container(container)
+                    exit()
     
     print("List of containers: " + str(client.containers.list()))
 

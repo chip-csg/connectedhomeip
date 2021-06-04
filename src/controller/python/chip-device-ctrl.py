@@ -493,7 +493,7 @@ class DeviceMgrCmd(Cmd):
                     "utf-8"), int(args[2]), nodeid)
             elif args[0] == "-ble" and len(args) >= 3:
                 self.devCtrl.ConnectBLE(int(args[1]), int(args[2]), nodeid)
-                result = self.devCtrl.ConnectBLE(int(args[1]), int(args[2]), nodeid)
+                # print(f"### Pase Data: {self.devCtrl.GetPASEData()}")
             elif args[0] == '-qr' and len(args) >=2:
                 print("Parsing QR code {}".format(args[1]))
                 setupPayload = SetupPayload().ParseQrCode(args[1])
@@ -894,7 +894,7 @@ def __check_supported_os()-> bool:
 ######--------------------------------------------------######
 
 def main():
-    # start_rpc_server()
+    start_rpc_server()
 
     # Never Executed: does not return here
     optParser = OptionParser()

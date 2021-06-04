@@ -45,7 +45,6 @@
 #include <transport/SecureSessionMgr.h>
 
 #include <csg_test_harness/constants.h>
-#include <iostream>
 namespace chip {
 
 using namespace Crypto;
@@ -74,7 +73,6 @@ PASESession::PASESession() {}
 PASESession::~PASESession()
 {
     // Let's clear out any security state stored in the object, before destroying it.
-    std::cout << "############### Deleting the PASE session ###############" << std::endl;
     Clear();
 }
 
@@ -193,8 +191,8 @@ CHIP_ERROR PASESession::Init(uint16_t myKeyId, uint32_t setupCode, SessionEstabl
 
     // Reset any state maintained by PASESession object (in case it's being reused for pairing)
     Clear();
+
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
-    std::cout<< "###### Resetting the mtrace, close exchange" << std::endl;
     mPASETrace =  std::map<std::string, std::map<std::string, std::string>>();
     request_message_map = {};
     response_message_map = {};
@@ -362,7 +360,6 @@ CHIP_ERROR PASESession::DeriveSecureSession(SecureSession & session, SecureSessi
 CHIP_ERROR PASESession::SendPBKDFParamRequest()
 {
 #ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
-    //const size_t str_len = kPBKDFParamRandomNumberSize * CHARS_PER_BYTE + 1;
     std::map<std::string,std::string> random_initiator_map = {};
     std::string random_number_string;
 #endif //CSG_TRACE_END
@@ -379,8 +376,6 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
 #ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     request_message_map.insert(std::make_pair(messageFromInitiator_key, stringForDataBuffer(req->Start(), req->DataLength()))); 
     mPASETrace.insert (std::make_pair(PBKDFParamRequest_key, request_message_map));
-    std::cout << "Saved Req: " << mPASETrace[PBKDFParamRequest_key][messageFromInitiator_key] << "\n";
-
 #endif //CSG_TRACE_END
 
     ReturnErrorOnFailure(mCommissioningHash.AddData(req->Start(), req->DataLength()));
@@ -508,7 +503,6 @@ CHIP_ERROR PASESession::HandlePBKDFParamResponse(const System::PacketBufferHandl
         response_message_map.insert(std::make_pair(PBKDFParamResponse_salt_length_key, std::to_string(saltlen)));
         response_message_map.insert(std::make_pair(PBKDFParamResponse_iter_count_key, std::to_string(iterCount)));
         mPASETrace.insert (std::make_pair(PBKDFParamResponse_key, response_message_map));
-        std::cout << "###Saved Res: " << mPASETrace[PBKDFParamResponse_key][messageFromResponder_key] << "\n";
 #endif //CSG_TRACE_END
     }
 
@@ -550,7 +544,6 @@ CHIP_ERROR PASESession::SendMsg1()
         pake_1_message_map.insert(std::make_pair(PAKE_1_Pa_key, stringForDataBuffer(&X[0], (uint16_t)X_len)));
         pake_1_message_map.insert(std::make_pair(PAKE_1_key_id_key, std::to_string(mConnectionState.GetLocalKeyID())));
         mPASETrace.insert (std::make_pair(PAKE_1_key, pake_1_message_map));
-        ChipLogDetail(Ble, "### Saved spake2p msg1");
 #endif //CSG_TRACE_END
     return CHIP_NO_ERROR;
 }
