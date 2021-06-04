@@ -74,6 +74,7 @@ PASESession::PASESession() {}
 PASESession::~PASESession()
 {
     // Let's clear out any security state stored in the object, before destroying it.
+    std::cout << "############### Deleting the PASE session ###############" << std::endl;
     Clear();
 }
 
@@ -111,14 +112,6 @@ void PASESession::CloseExchange()
         mExchangeCtxt->Close();
         mExchangeCtxt = nullptr;
     }
-#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
-    mPASETrace = std::map<std::string, std::map<std::string, std::string>>();
-    request_message_map = {};
-    response_message_map = {};
-    pake_1_message_map = {};
-    pake_2_message_map = {};
-    pake_3_message_map = {};
-#endif //CSG_TRACE_END
 }
 
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
@@ -200,7 +193,15 @@ CHIP_ERROR PASESession::Init(uint16_t myKeyId, uint32_t setupCode, SessionEstabl
 
     // Reset any state maintained by PASESession object (in case it's being reused for pairing)
     Clear();
-
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+    std::cout<< "###### Resetting the mtrace, close exchange" << std::endl;
+    mPASETrace =  std::map<std::string, std::map<std::string, std::string>>();
+    request_message_map = {};
+    response_message_map = {};
+    pake_1_message_map = {};
+    pake_2_message_map = {};
+    pake_3_message_map = {};
+#endif //CSG_TRACE_END
     ReturnErrorOnFailure(mCommissioningHash.Begin());
     ReturnErrorOnFailure(mCommissioningHash.AddData(Uint8::from_const_char(kSpake2pContext), strlen(kSpake2pContext)));
 
@@ -378,6 +379,8 @@ CHIP_ERROR PASESession::SendPBKDFParamRequest()
 #ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
     request_message_map.insert(std::make_pair(messageFromInitiator_key, stringForDataBuffer(req->Start(), req->DataLength()))); 
     mPASETrace.insert (std::make_pair(PBKDFParamRequest_key, request_message_map));
+    std::cout << "Saved Req: " << mPASETrace[PBKDFParamRequest_key][messageFromInitiator_key] << "\n";
+
 #endif //CSG_TRACE_END
 
     ReturnErrorOnFailure(mCommissioningHash.AddData(req->Start(), req->DataLength()));
@@ -505,6 +508,7 @@ CHIP_ERROR PASESession::HandlePBKDFParamResponse(const System::PacketBufferHandl
         response_message_map.insert(std::make_pair(PBKDFParamResponse_salt_length_key, std::to_string(saltlen)));
         response_message_map.insert(std::make_pair(PBKDFParamResponse_iter_count_key, std::to_string(iterCount)));
         mPASETrace.insert (std::make_pair(PBKDFParamResponse_key, response_message_map));
+        std::cout << "###Saved Res: " << mPASETrace[PBKDFParamResponse_key][messageFromResponder_key] << "\n";
 #endif //CSG_TRACE_END
     }
 

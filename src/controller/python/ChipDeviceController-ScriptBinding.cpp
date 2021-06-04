@@ -59,6 +59,7 @@
 #include <support/DLLUtil.h>
 #include <support/logging/CHIPLogging.h>
 
+#include <iostream>
 using namespace chip;
 using namespace chip::Ble;
 using namespace chip::Controller;
@@ -217,6 +218,7 @@ void pychip_DeviceController_SetLogFilter(uint8_t category)
 const char * pychip_DeviceController_GetPASEData(chip::Controller::DeviceCommissioner * devCtrl)
 {
     PASESession *pase_session = devCtrl->GetPASESession();
+    std::cout << "Pase Session Address: " << pase_session << "\n";
     std::map<std::string, std::map<std::string, std::string>> *paseTrace = pase_session->getPASETrace();
     return yaml_string_for_map(paseTrace);
 }

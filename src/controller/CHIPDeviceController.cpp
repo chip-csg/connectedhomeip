@@ -809,7 +809,7 @@ CHIP_ERROR DeviceCommissioner::Shutdown()
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
 PASESession *DeviceCommissioner::GetPASESession()
 {   
-    return &mRendezvousSession->GetPairingSession();
+    return &mPairingSession;
 }
 #endif //CSG_TRACE_END
 

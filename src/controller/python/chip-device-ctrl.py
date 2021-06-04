@@ -847,6 +847,8 @@ def qr_code_parse(qr_code):
     try:
         result = SetupPayload().ParseQrCode(qr_code).Dictionary()
         return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = result)
+    except Exception as e:
+         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def get_pase_data() -> Dict[Any, Any]:
     """
@@ -892,7 +894,7 @@ def __check_supported_os()-> bool:
 ######--------------------------------------------------######
 
 def main():
-    start_rpc_server()
+    # start_rpc_server()
 
     # Never Executed: does not return here
     optParser = OptionParser()
