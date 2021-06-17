@@ -85,6 +85,7 @@ async def main():
     discriminator = 3840
     pin_code = 20202021
     node_id = 1234
+
     # Invoke RPCs
     try: 
         print("Calling RPCs")
