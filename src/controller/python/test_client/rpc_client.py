@@ -85,7 +85,6 @@ async def main():
     discriminator = 3840
     pin_code = 20202021
     node_id = 1234
-
     # Invoke RPCs
     try: 
         print("Calling RPCs")
@@ -96,6 +95,9 @@ async def main():
         print(f"connect: {connect}")
         pase_data = server_1.get_pase_data()
         print(f"pase_data: {pase_data}")
+        fabric_id = server_1.get_fabric_id()
+        print(f"fabric_id: {fabric_id}")
+
     except Exception as e:
         print(e)
 
