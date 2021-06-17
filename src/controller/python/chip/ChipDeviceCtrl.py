@@ -175,6 +175,11 @@ class ChipDeviceController(object):
             raise ValueError(f"Invalid PASE yaml string returned: {pase_yaml_str}")
         return pase_dict
 
+    def GetFabricID(self):
+        fabricID = c_uint64(0)
+        return self._ChipStack.Call(
+            lambda: self._dmLib.pychip_DeviceController_GetFabricID(pointer(fabricID))
+        )
 
     def ResolveNode(self, fabricid, nodeid):
         return self._ChipStack.CallAsync(
@@ -292,8 +297,12 @@ class ChipDeviceController(object):
                 c_void_p]
             self._dmLib.pychip_DeviceController_DeleteDeviceController.restype = c_uint32
 
+            ## CSG Fork Changes - BEGIN
             self._dmLib.pychip_DeviceController_GetPASEData.argtypes = [c_void_p]
             self._dmLib.pychip_DeviceController_GetPASEData.restype = c_char_p
+            self._dmLib.pychip_DeviceController_GetFabricID.argtypes = [c_void_p]
+            self._dmLib.pychip_DeviceController_GetFabricID.restype = c_uint32
+            ## CSH Fork - END
 
             self._dmLib.pychip_DeviceController_ConnectBLE.argtypes = [
                 c_void_p, c_uint16, c_uint32, c_uint64]

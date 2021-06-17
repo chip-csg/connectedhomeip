@@ -59,6 +59,8 @@
 #include <support/DLLUtil.h>
 #include <support/logging/CHIPLogging.h>
 
+#include <platform/CHIPDeviceLayer.h>
+
 using namespace chip;
 using namespace chip::Ble;
 using namespace chip::Controller;
@@ -91,6 +93,7 @@ pychip_DeviceController_GetAddressAndPort(chip::Controller::DeviceCommissioner *
 
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
 const char * pychip_DeviceController_GetPASEData(chip::Controller::DeviceCommissioner * devCtrl);
+CHIP_ERROR pychip_DeviceController_GetFabricID(uint64_t *fabric_id);
 #endif //CSG_TRACE_END
 // Rendezvous
 CHIP_ERROR pychip_DeviceController_ConnectBLE(chip::Controller::DeviceCommissioner * devCtrl, uint16_t discriminator,
@@ -214,6 +217,11 @@ void pychip_DeviceController_SetLogFilter(uint8_t category)
 }
 
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+CHIP_ERROR pychip_DeviceController_GetFabricID(uint64_t *fabric_id)
+{
+    return DeviceLayer::ConfigurationMgr().GetFabricId(fabric_ID);
+}
+
 const char * pychip_DeviceController_GetPASEData(chip::Controller::DeviceCommissioner * devCtrl)
 {
     PASESession *pase_session = devCtrl->GetPASESession();

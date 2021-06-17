@@ -855,7 +855,18 @@ def get_pase_data() -> Dict[Any, Any]:
     """
     try:
         __check_supported_os()
-        pase_data = device_manager.devCtrl.GetPASEData()
+        fabricID = device_manager.devCtrl.GetFabricID()
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = fabricID)
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
+def get_fabric_id() -> Dict[Any, Any]:
+    """
+    This method will return valid data only after the connect has been called
+    """    
+    try:
+        __check_supported_os()
+        pase_data = device_manager.GetG()
         return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = pase_data)
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
