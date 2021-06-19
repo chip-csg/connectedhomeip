@@ -778,10 +778,12 @@ def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
             return __get_response_dict(status = StatusCodeEnum.FAILED, error = f"Failed to resolve node, with error code: {err}")
 
         address = device_manager.devCtrl.GetAddressAndPort(node_id)
-        if address is not None:
-            address = "{}:{}".format(
+        if address is None:
+            return __get_response_dict(status = StatusCodeEnum.FAILED, error = f"Failed to obtaing the addr, with error code: {err}")
+
+        address = "{}:{}".format(
                 *address)  
-            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = {'address': address}) 
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = {'address': address}) 
             
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
