@@ -1018,6 +1018,7 @@ def start_rpc_server():
         server.register_function(get_pase_data)
         server.register_function(get_fabric_id)
         server.register_multicall_functions()
+        server.register_introspection_functions()
         print('Serving XML-RPC on localhost port 5000')
         try:
             server.serve_forever()
