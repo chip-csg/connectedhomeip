@@ -762,6 +762,22 @@ def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
+#def zcl_read_attribute(line):
+#    res = device_manager.do_zclread(line)
+#    return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
+
+
+def zcl_read_attribute(cluster: str, attribute: str, node_id: int, endpoint_id: Optional[int] = 0, group_id: Optional[int] = 0):
+    try:
+        res = device_manager.devCtrl.ZCLReadAttribute(cluster, attribute, node_id, endpoint_id, group_id, blocking=True)
+        if res != None:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
+        else:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+    except exceptions.ChipStackException as ex:
+        print("An exception occurred during reading ZCL attribute:")
+        print(str(ex))
+
 def zcl_add_network(node_id: int, ssid: str, password: str, endpoint_id: Optional[int] = 1, group_id: Optional[int] = 0, breadcrumb: Optional[int] = 0, timeoutMs: Optional[int] = 1000) -> Dict[str, Any] :
     try:
         __check_supported_os()
@@ -878,10 +894,12 @@ def start_rpc_server():
         server.register_function(zcl_add_network)
         server.register_function(zcl_enable_network)
         server.register_function(resolve)
+        server.register_function(zcl_read_attribute)
         server.register_function(qr_code_parse)
         server.register_function(get_pase_data)
         server.register_function(get_fabric_id)
         server.register_multicall_functions()
+        server.register_introspection_functions()
         print('Serving XML-RPC on localhost port 5000')
         try:
             server.serve_forever()
