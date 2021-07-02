@@ -1,3 +1,4 @@
+from xmlrpc import server
 import xmlrpc.client
 import docker
 import time
@@ -66,7 +67,8 @@ async def create_container(docker_image_tag: str,  port: int) -> Container:
 
 async def main():
     try: 
-        container_1 = await create_container(docker_image_tag="chip-test", port=5050)
+#        container_1 = await create_container(docker_image_tag="chip-test", port=5050)
+        pass
     except AttributeError as e:
         for container in client.containers.list():
             for tag in container.image.tags:
@@ -81,29 +83,80 @@ async def main():
     time.sleep(1)
     
     # Create an RPC server
-    server_1 = xmlrpc.client.ServerProxy("http://localhost:5050/")
+    
+    # # For Docker
+    # server_1 = xmlrpc.client.ServerProxy("http://localhost:5050/")
+    
+    # For host
+    server_1 = xmlrpc.client.ServerProxy("http://localhost:5000/")
+
     discriminator = 3840
     pin_code = 20202021
     node_id = 1234
+    endpoint_id = 0
+    group_id = 0
+    bread_crumb = 0
+    timeout_ms = 10000
 
     # Invoke RPCs
     try: 
-        print("Calling RPCs")
-        print("echo_alive Response:" + server_1.echo_alive("Test"))
-        scan = server_1.ble_scan()
-        print(f"scan: {scan}")
-        connect = server_1.ble_connect(discriminator, pin_code, node_id)
-        print(f"connect: {connect}")
-        pase_data = server_1.get_pase_data()
-        print(f"pase_data: {pase_data}")
-        fabric_id = server_1.get_fabric_id()
-        print(f"fabric_id: {fabric_id}")
+        # print("Calling RPCs")
+        # print("echo_alive Response:" + server_1.echo_alive("Test"))
+        # scan = server_1.ble_scan()
+        # print(f"scan: {scan}")
+        # connect = server_1.ble_connect(discriminator, pin_code, node_id)
+        # print(f"connect: {connect}")
+        # pase_data = server_1.get_pase_data()
+        # print(f"pase_data: {pase_data}")
+        # response = server_1.zcl_add_network(
+        #     int(node_id),
+        #     "Sadaath_Restricted",
+        #     "Chicken65",
+        #     endpoint_id,
+        #     group_id,
+        #     bread_crumb,
+        #     timeout_ms,
+        # )
+        # print(f"Add network response {response}")
+        # response = server_1.zcl_enable_network(
+        #     int(node_id),
+        #     "Sadaath_Restricted",
+        #     endpoint_id,
+        #     group_id,
+        #     bread_crumb,
+        #     timeout_ms,
+        # )
+        # print(f"Enable network response {response}")
+        # time.sleep(3)
+
+        # response = server_1.get_fabric_id()
+        # print(f"fabric_id: {response}")
+        # time.sleep(5)
+
+        resolve_response = server_1.resolve(0,node_id)
+        print(f"resolve: {resolve_response}")
+        
+        # ble_close_response = server_1.ble_close()
+        # print(f"close: {ble_close_response}")
+        
+        print("-----Start the sniffer please -----")
+        time.sleep(5)
+
+        on_off_response = server_1.on_off(int(node_id),endpoint_id,group_id)
+        print(f"on_off: {on_off_response}")
+        
+        time.sleep(5)
+        
+        on_off_response = server_1.on_off(int(node_id),endpoint_id,group_id)
+        print(f"on_off: {on_off_response}")
+
+
 
     except Exception as e:
         print(e)
 
     # Cleanup
-    destroy_container(container_1)
+    # destroy_container(container_1)
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()

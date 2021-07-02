@@ -205,6 +205,9 @@ CHIP_ERROR SecureSessionMgr::SendMessage(SecureSessionHandle session, PayloadHea
     else
     {
         ChipLogProgress(Inet, "Sending secure msg on generic transport");
+        char *add_str =(char *)malloc(64*(sizeof(char))) ;
+        ChipLogProgress(Inet, "Sending secure msg to IP: %s", state->GetPeerAddress().GetIPAddress().ToString(add_str,(uint32_t)64));
+
         err = mTransportMgr->SendMessage(state->GetPeerAddress(), std::move(msgBuf));
     }
     ChipLogProgress(Inet, "Secure msg send status %s", ErrorStr(err));

@@ -824,6 +824,39 @@ def zcl_enable_network(node_id: int, ssid:str, endpoint_id: Optional[int] = 1, g
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
+def on_off(node_id: int, endpoint_id: Optional[int] = 1, group_id: Optional[int] = 0) -> Dict[str, Any]:
+    try:
+        __check_supported_os()
+        err, res = device_manager.devCtrl.ZCLSend("OnOff", "On", node_id, endpoint_id, group_id, {}, blocking=True)
+        if err != 0:
+            return __get_response_dict(status = StatusCodeEnum.FAILED)
+        else:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
+        
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
+def zcl_vendor_name(node_id: int, endpoint_id: Optional[int] = 1, group_id: Optional[int] = 0) -> Dict[str, Any]:
+    try:
+        __check_supported_os()
+        err, res = device_manager.devCtrl.ZCLSend("Basic", "VendorName", node_id, endpoint_id, group_id, {}, blocking=True)
+        if err != 0:
+            return __get_response_dict(status = StatusCodeEnum.FAILED)
+        else:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
+        
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
+
+def ble_close() -> Dict[Any, Any]:
+    try:
+        __check_supported_os()
+        device_manager.devCtrl.CloseBLEConnection()
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(0))
+    except Exception as ex:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+        
 def ble_scan():
     try:
         __check_supported_os()
@@ -896,7 +929,8 @@ def get_pase_data() -> Dict[Any, Any]:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def start_rpc_server():
-    with SimpleXMLRPCServer(("0.0.0.0", 5000), allow_none=True) as server:
+    #with SimpleXMLRPCServer(("0.0.0.0", 5000), allow_none=True) as server:
+    with SimpleXMLRPCServer(("127.0.0.1", 5000), allow_none=True) as server:
         server.register_function(echo_alive)
         server.register_function(ble_scan)
         server.register_function(ble_connect)
@@ -907,6 +941,9 @@ def start_rpc_server():
         server.register_function(qr_code_parse)
         server.register_function(get_pase_data)
         server.register_function(get_fabric_id)
+        server.register_function(on_off)
+        server.register_function(zcl_vendor_name)
+        server.register_function(ble_close)
         server.register_multicall_functions()
         print('Serving XML-RPC on localhost port 5000')
         try:
