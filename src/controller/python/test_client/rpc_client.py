@@ -98,7 +98,6 @@ async def main():
     try: 
         print("Calling RPCs")
         print("echo_alive Response:" + server_1.echo_alive("Test"))
-        parameterList: List = []
         print(server_1.system.listMethods())
         scan = call_rpc(server_1, "ble_scan")
         print(f"scan: {scan}")
