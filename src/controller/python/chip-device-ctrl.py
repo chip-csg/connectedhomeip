@@ -1000,6 +1000,14 @@ def get_fabric_id():
     except Exception as e:
          return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
 
+def ble_close():
+    try:
+        __check_supported_os()
+        device_manager.devCtrl.CloseBLEConnection()
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(0))
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
 def get_pase_data() -> Dict[Any, Any]:
     """
     This method will return valid data only after the ble_connect, ip_connect method has been called
@@ -1026,6 +1034,7 @@ def start_rpc_server():
         server.register_function(get_fabric_id)
         server.register_function(pin_code_parse)
         server.register_multicall_functions()
+        server.register_function(ble_close)
         server.register_introspection_functions()
         print('Serving XML-RPC on localhost port 5000')
         try:
