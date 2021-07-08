@@ -897,13 +897,12 @@ def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
     except Exception as e:
         return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
 
-def zcl_command(cluster: str,command: str, node_id: Optional[int], endpoint_id: Optional[int] = 1, group_id: Optional[int] = 0, args: Optional[dict] = {}) -> Dict[str, Any] :
+def zcl_command(cluster: str,command: str, node_id: int, endpoint_id: Optional[int] = 1, group_id: Optional[int] = 0, args: Optional[dict] = {}) -> Dict[str, Any] :
     try:
         __check_supported_os()
 
         all_commands = device_manager.devCtrl.ZCLCommandList()
         command_arg = all_commands.get(cluster).get(command, None)
-        # When command_arg takes no arguments, (not command) is True
         if command_arg is None:
             raise exceptions.UnknownCommand(cluster, command)
         commandArgs = {}
