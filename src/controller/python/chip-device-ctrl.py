@@ -770,15 +770,7 @@ def zcl_command(cluster: str,command: str, node_id: int, endpoint_id: Optional[i
         command_arg = all_commands.get(cluster).get(command, None)
         if command_arg is None:
             raise exceptions.UnknownCommand(cluster, command)
-        commandArgs = {}
-        for key, value in args.items():
-            valueType = command_arg.get(key, None)
-            if valueType == 'int':
-                commandArgs[key] = int(value)
-            elif valueType == 'str':
-                commandArgs[key] = value
-            elif valueType == 'bytes':
-                commandArgs[key] = ParseEncodedString(value)
+        commandArgs = __format_zcl_arguments_from_dict(args, command_arg)
 
         err, res = device_manager.devCtrl.ZCLSend(cluster, command, node_id, endpoint_id, group_id, commandArgs, blocking=True)
         if err != 0:
@@ -790,6 +782,19 @@ def zcl_command(cluster: str,command: str, node_id: int, endpoint_id: Optional[i
 
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
+def __format_zcl_arguments_from_dict(args: dict, command) -> Dict[str, Any]:
+    commandArgs = {}
+    for key, value in args.items():
+        valueType = command.get(key, None)
+        if valueType == 'int':
+            commandArgs[key] = int(value)
+        elif valueType == 'str':
+            commandArgs[key] = value
+        elif valueType == 'bytes':
+            commandArgs[key] = ParseEncodedString(value)
+    return commandArgs
+    
 
 def zcl_add_network(node_id: int, ssid: str, password: str, endpoint_id: Optional[int] = 1, group_id: Optional[int] = 0, breadcrumb: Optional[int] = 0, timeoutMs: Optional[int] = 1000) -> Dict[str, Any] :
     try:
