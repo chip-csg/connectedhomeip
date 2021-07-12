@@ -231,6 +231,24 @@ class ChipDeviceController(object):
             return im.WaitCommandIndexStatus(im.PLACEHOLDER_COMMAND_HANDLE, 1)
         return (0, None)
 
+    def ZCLReadClusterAttribute(self, cluster, attribute, nodeid, endpoint, groupid, blocking=True):
+        device = c_void_p(None)
+        res = self._ChipStack.Call(lambda: self._dmLib.pychip_GetDeviceByNodeId(
+            self.devCtrl, nodeid, pointer(device)))
+        if res != 0:
+            raise self._ChipStack.ErrorToException(res)
+        
+        # Confirm Cluster and Attribute are supported
+        for cluster_name, attributes in self._Cluster.ListClusterAttributes().items():
+            if cluster == cluster name and attribute in attributes:
+                ReadAttribute_function = eval(f"self._Cluster.ClusterBasic_ReadAttribute{attribute}") 
+                res = ReadAttribute_function(device, endpoint, groupid)
+
+        #if blocking:
+            # We only send 1 command by this function, so index is always 0
+            #return im.WaitCommandIndexStatus(im.PLACEHOLDER_COMMAND_HANDLE, 1)
+        return res
+
     def ZCLReadAttribute(self, cluster, attribute, nodeid, endpoint, groupid, blocking=True):
         device = c_void_p(None)
         res = self._ChipStack.Call(lambda: self._dmLib.pychip_GetDeviceByNodeId(

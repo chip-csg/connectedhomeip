@@ -762,14 +762,11 @@ def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
-#def zcl_read_attribute(line):
-#    res = device_manager.do_zclread(line)
-#    return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
-
-
 def zcl_read_attribute(cluster: str, attribute: str, node_id: int, endpoint_id: Optional[int] = 0, group_id: Optional[int] = 0):
     try:
-        res = device_manager.devCtrl.ZCLReadAttribute(cluster, attribute, node_id, endpoint_id, group_id, blocking=True)
+        err, res = device_manager.devCtrl.ZCLReadClusterAttribute(cluster=cluster, attribute=attribute, nodeid=node_id, endpoint=endpoint_id, groupid=group_id,blocking=True)
+        if err != 0:
+            return __get_response_dict(status = StatusCodeEnum.FAILED)
         if res != None:
             return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
         else:
