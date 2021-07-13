@@ -22,7 +22,7 @@ git push origin
 * At the root directory:
 ```bash
 source scripts/activate.sh
-gn gen out/debug
+gn gen --args='chip_mdns="platform"' out/debug
 ninja -C out/debug
 ```
 * A .whl file is generate at `out/debug/controller/python/chip-0.0-cp37-abi3-linux_aarch64.whl`
