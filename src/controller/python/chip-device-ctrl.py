@@ -869,9 +869,9 @@ def ble_close():
     try:
         __check_supported_os()
         device_manager.devCtrl.CloseBLEConnection()
-        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(0))
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=str(0))
     except Exception as e:
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+        return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
 
 def get_pase_data() -> Dict[Any, Any]:
     """
