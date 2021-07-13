@@ -71,7 +71,7 @@ def call_rpc(device_server,  method_name, *params):
         response_dict = getattr(device_server, method_name)(*params)
         return response_dict['result']
     else:
-        raise RuntimeError(f"RPC Method {method_name} is not available.");
+        raise RuntimeError(f"RPC Method {method_name} is not available.")
 
 async def main():
     try: 
