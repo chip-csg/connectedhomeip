@@ -886,16 +886,16 @@ def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
         __check_supported_os()
         err = device_manager.devCtrl.ResolveNode(fabric_id, node_id)
         if err != 0:
-            return __get_response_dict(status = StatusCodeEnum.FAILED, error = f"Failed to resolve node, with error code: {err}")
+            return __get_response_dict(status=StatusCodeEnum.FAILED, error=f"Failed to resolve node, with error code: {err}")
 
         address = device_manager.devCtrl.GetAddressAndPort(node_id)
         if address is not None:
             address = "{}:{}".format(
                 *address)  
-            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = {'address': address}) 
+            return __get_response_dict(status=StatusCodeEnum.SUCCESS, result={'address': address}) 
             
     except Exception as e:
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+        return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
 
 def zcl_add_network(node_id: int, ssid: str, password: str, endpoint_id: Optional[int] = 1, group_id: Optional[int] = 0, breadcrumb: Optional[int] = 0, timeoutMs: Optional[int] = 1000) -> Dict[str, Any] :
     try:
@@ -907,11 +907,11 @@ def zcl_add_network(node_id: int, ssid: str, password: str, endpoint_id: Optiona
         args['timeoutMs'] = timeoutMs 
         err, res = device_manager.devCtrl.ZCLSend("NetworkCommissioning", "AddWiFiNetwork", node_id, endpoint_id, group_id, args, blocking=True)
         if err != 0:
-            return __get_response_dict(status = StatusCodeEnum.FAILED)
+            return __get_response_dict(status=StatusCodeEnum.FAILED)
         elif res != None:
-            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
+            return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=str(res))
         else:
-            return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+            return __get_response_dict(status=StatusCodeEnum.SUCCESS)
 
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
@@ -926,20 +926,20 @@ def zcl_enable_network(node_id: int, ssid:str, endpoint_id: Optional[int] = 1, g
   
         err, res = device_manager.devCtrl.ZCLSend("NetworkCommissioning", "EnableNetwork", node_id, endpoint_id, group_id, args, blocking=True)
         if err != 0:
-            return __get_response_dict(status = StatusCodeEnum.FAILED)
+            return __get_response_dict(status=StatusCodeEnum.FAILED)
         else:
-            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
+            return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=str(res))
         
     except Exception as e:
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+        return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
 
 def ble_scan():
     try:
         __check_supported_os()
         device_manager.do_blescan("")
-        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = __get_peripheral_list())
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=__get_peripheral_list())
     except Exception as e:
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+        return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
 
 def __get_peripheral_list() -> Dict[Any, Any]:
     device_list = []
@@ -965,40 +965,40 @@ def ble_connect(discriminator: int, pin_code: int, node_id: int) -> Dict[str, An
     try:
         __check_supported_os()
         device_manager.devCtrl.ConnectBLE(discriminator, pin_code, node_id)
-        return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS)
     except Exception as e:
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+        return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
 
 def ip_connect(ip_address: string, pin_code: int, node_id: int) -> Dict[str, Any]:
     try:
         __check_supported_os()
         device_manager.devCtrl.ConnectIP(ip_address.encode("utf-8"), pin_code, node_id)
-        return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS)
     except Exception as e:
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+        return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
 
 def qr_code_parse(qr_code):
     try:
         result = SetupPayload().ParseQrCode(qr_code).Dictionary()
-        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = result)
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=result)
     except Exception as e:
-         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+         return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
 
 def pin_code_code_parse(pin_code):
     try:
         result = SetupPayload().ParseManualPairingCode(pin_code).Dictionary()
-        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = result)
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=result)
     except Exception as e:
-         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+         return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
 
 def get_fabric_id():
     try:
         fabricID = device_manager.devCtrl.GetFabricId()
         if fabricID == 0:
-            return __get_response_dict(status = StatusCodeEnum.FAILED, error = "Fabric ID not created or encountered an error")
-        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = fabricID)
+            return __get_response_dict(status=StatusCodeEnum.FAILED, error="Fabric ID not created or encountered an error")
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=fabricID)
     except Exception as e:
-         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+         return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
 
 def get_pase_data() -> Dict[Any, Any]:
     """
@@ -1007,9 +1007,9 @@ def get_pase_data() -> Dict[Any, Any]:
     try:
         __check_supported_os()
         pase_data = device_manager.devCtrl.GetPASEData()
-        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = pase_data)
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result=pase_data)
     except Exception as e:
-        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error=str(e))
 
 def start_rpc_server():
     with SimpleXMLRPCServer(("0.0.0.0", 5000), allow_none=True) as server:
