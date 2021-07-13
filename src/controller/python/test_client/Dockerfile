@@ -1,5 +1,4 @@
-# getting base image for ubuntu
-FROM ubuntu:20.10
+FROM ubuntu:latest
 
 # To override
 ENV TZ=America/Los_Angeles
@@ -11,7 +10,6 @@ RUN apt-get update
 
 # Install Dependencies for setting up CHIP environment
 RUN apt-get install -y apt-utils \
-                       git \
                        gcc \
                        g++ \
                        python \
@@ -61,11 +59,11 @@ RUN apt-get install -y autotools-dev \
 ADD requirements.txt .
 RUN pip3 install -r requirements.txt --no-binary :all
 
-# Wheel needs to be in the same dir as the dockerfile
+# Wheel needs to be in the same dir as the dockerfile and have the following name
 ADD chip-0.0-cp37-abi3-linux_aarch64.whl .
 RUN pip3 install chip-0.0-cp37-abi3-linux_aarch64.whl
 WORKDIR /chip_tool
-
+ 
 # Switching to a non-root user, please refer to https://aka.ms/vscode-docker-python-user-rights
 RUN useradd appuser && chown -R appuser /chip_tool
 USER appuser
@@ -74,5 +72,4 @@ USER appuser
 ENV PYTHONPATH="/usr/bin/python3"
 
 # Executed when you start/launch a container
-# CMD bash
 CMD ["chip-device-ctrl"]
