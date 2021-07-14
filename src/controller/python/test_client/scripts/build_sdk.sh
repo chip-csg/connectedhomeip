@@ -1,8 +1,7 @@
 
 # Skip creating environment if it already exists
-if [[ -z "${CHIP_SDK_ROOT}" ]]; then
-  source ./scripts/activate_environment.sh
-fi
+
+source ./scripts/activate_environment.sh
 
 gn gen $CHIP_SDK_ROOT/out/debug
 ninja -C $CHIP_SDK_ROOT/out/debug
