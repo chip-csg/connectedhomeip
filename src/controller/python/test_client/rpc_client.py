@@ -112,9 +112,29 @@ async def main():
         # Network Provisioning commands
         ssid="str:UncharteredTerretory"
         credentials="str:areaaa51"
-        zcl_add_network = server_1.zcl_command("NetworkCommissioning", "AddWiFiNetwork", node_id, 0, 0, {'breadcrumb':0, 'timeoutMs': 1000, 'ssid':ssid, 'credentials':credentials})
+        zcl_add_network = server_1.zcl_command(
+                "NetworkCommissioning",
+                "AddWiFiNetwork",
+                node_id, 0, 0,
+                {
+                    'breadcrumb':0,
+                    'timeoutMs': 1000,
+                    'ssid':ssid,
+                    'credentials':credentials
+                    }
+                )
         print(f"zcl_add_network: {zcl_add_network}")
-        zcl_enable_network = server_1.zcl_command("NetworkCommissioning", "EnableNetwork", node_id, 0, 0, {'breadcrumb':0, 'timeoutMs': 1000, 'networkID':ssid})
+        zcl_enable_network = server_1.zcl_command(
+                "NetworkCommissioning",
+                "EnableNetwork",
+                node_id,
+                0, 0,
+                {
+                    'breadcrumb':0,
+                    'timeoutMs': 1000,
+                    'networkID':ssid
+                    }
+                )
         print(f"zcl_enable_network: {zcl_enable_network}")
 
         # OnOff ZCL commands
@@ -122,7 +142,18 @@ async def main():
         print(f"zcl_on_off: {zcl_on_off}")
 
         # LevelControl ZCL commands
-        zcl_level_control = server_1.zcl_command("LevelControl", "MoveToLevel", node_id, 1, 0, {'level':50, 'transitionTime':10, 'optionMask':10, 'optionOverride':10})
+        zcl_level_control = server_1.zcl_command(
+                "LevelControl",
+                "MoveToLevel",
+                node_id,
+                1, 0,
+                {
+                    'level':50, 
+                    'transitionTime':10,
+                    'optionMask':10,
+                    'optionOverride':10
+                    }
+                )
         print(f"zcl_level_control: {zcl_level_control}")
 
     except Exception as e:
