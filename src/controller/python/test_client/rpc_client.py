@@ -106,8 +106,27 @@ async def main():
         print(f"connect: {connect}")
         pase_data = server_1.get_pase_data()
         print(f"pase_data: {pase_data}")
-        fabric_id = server_1.get_fabric_id()
-        print(f"fabric_id: {fabric_id}")
+        #fabric_id = server_1.get_fabric_id()
+        #print(f"fabric_id: {fabric_id}")
+        credentials="str:areaaa51"
+        ssid="str:UncharteredTerretory"
+        zcl_add_network = server_1.zcl_add_network(node_id, ssid, credentials, 0, 0, 0, 1000)
+        print(f"zcl_add_network: {zcl_add_network}")
+        zcl_enable_network = server_1.zcl_enable_network(node_id, ssid, 0, 0, 0, 1000)
+        print(f"zcl_enable_network: {zcl_enable_network}")
+        
+        print("Waiting for 30s before Reading Cluster Attributes")
+        time.sleep(30)
+        print("###### Starting Attribute Read")
+
+        zcl_read_attributes = server_1.zcl_read_attribute("Basic", "ProductID", node_id, 0, 0)
+        print(f"zcl_read_attributes: {zcl_read_attributes}")
+
+        zcl_read_attributes_VID = server_1.zcl_read_attribute("Basic", "VendorID", node_id, 0, 0)
+        print(f"zcl_read_attributes_VID: {zcl_read_attributes_VID}")
+
+        zcl_read_attributes = server_1.zcl_read_attribute("Basic", "HardwareVersion", node_id, 0, 0)
+        print(f"zcl_read_attributes: {zcl_read_attributes}")
 
     except Exception as e:
         print(e)
