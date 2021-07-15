@@ -762,6 +762,73 @@ def resolve(fabric_id: int, node_id: int) -> Dict[str, Any]:
     except Exception as e:
         return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
 
+def zcl_command(
+        cluster: str,
+        command: str,
+        node_id: int,
+        endpoint_id: Optional[int] = 1,
+        group_id: Optional[int] = 0,
+        optional_args: Optional[dict] = {}
+        ) -> Dict[str, Any] :
+    """Generic API for sending ZCL Cluster commands
+    Each ZCL command has following format:
+    zcl <Cluster> <Command> <Node Id> <Endpoint Id> <Group Id> [optional arguments]
+    
+    Args:
+        cluster (str): Name of cluster
+        command (str): Command to be run for the mentioned cluster
+        node_id (int): node_id assigned to the DUT
+        endpoint_id (int): Optional, endpoint id
+        group_ip (int): Optional, group id
+        optional_args (dict): Optinal, dictionary of optional arguements for zcl
+        cluster commands
+
+    Raises:
+        exceptions.UnknownCommand: when incorrect cluster and/or command passed
+
+    Returns:
+        Dict[str, Any]: Dictionary of RPC response for ZCL cluster command  
+    """
+    try:
+        __check_supported_os()
+
+        all_commands = device_manager.devCtrl.ZCLCommandList()
+        command_arg = all_commands.get(cluster).get(command, None)
+        if command_arg is None:
+            raise exceptions.UnknownCommand(cluster, command)
+        formatted_zcl_args = __format_zcl_arguments_from_dict(optional_args, command_arg)
+
+        error, response = device_manager.devCtrl.ZCLSend(
+                cluster=cluster,
+                command=command,
+                nodeid=node_id,
+                endpoint=endpoint_id,
+                groupid=group_id,
+                args=formatted_zcl_args,
+                blocking=True)
+        if error:
+            return __get_response_dict(status = StatusCodeEnum.FAILED)
+        elif response:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(response))
+        else:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
+def __format_zcl_arguments_from_dict(optional_args: dict, command: dict) -> Dict[str, Any]:
+    formatted_command_args = {}
+    for key, value in optional_args.items():
+        valueType = command.get(key, None)
+        if valueType == 'int':
+            formatted_command_args[key] = int(value)
+        elif valueType == 'str':
+            formatted_command_args[key] = value
+        elif valueType == 'bytes':
+            formatted_command_args[key] = ParseEncodedString(value)
+    return formatted_command_args
+    
+
 def zcl_add_network(node_id: int, ssid: str, password: str, endpoint_id: Optional[int] = 1, group_id: Optional[int] = 0, breadcrumb: Optional[int] = 0, timeoutMs: Optional[int] = 1000) -> Dict[str, Any] :
     try:
         __check_supported_os()
@@ -890,6 +957,7 @@ def start_rpc_server():
         server.register_function(ble_scan)
         server.register_function(ble_connect)
         server.register_function(ip_connect)
+        server.register_function(zcl_command)
         server.register_function(zcl_add_network)
         server.register_function(zcl_enable_network)
         server.register_function(resolve)
