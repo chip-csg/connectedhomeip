@@ -922,7 +922,7 @@ def zcl_command(
         exceptions.UnknownCommand: when incorrect cluster and/or command passed
 
     Returns:
-      Dict[str, Any]: Dictionary of RPC response for ZCL cluster command  
+        Dict[str, Any]: Dictionary of RPC response for ZCL cluster command  
     """
     try:
         __check_supported_os()
@@ -934,12 +934,12 @@ def zcl_command(
         formatted_zcl_args = __format_zcl_arguments_from_dict(optional_args, command_arg)
 
         error, response = device_manager.devCtrl.ZCLSend(
-                cluster,
-                command,
-                node_id,
-                endpoint_id,
-                group_id,
-                formatted_zcl_args,
+                cluster=cluster,
+                command=command,
+                nodeid=node_id,
+                endpoint=endpoint_id,
+                groupid=group_id,
+                args=formatted_zcl_args,
                 blocking=True)
         if error:
             return __get_response_dict(status = StatusCodeEnum.FAILED)
