@@ -933,7 +933,7 @@ def zcl_command(
             raise exceptions.UnknownCommand(cluster, command)
         formatted_zcl_args = __format_zcl_arguments_from_dict(optional_args, command_arg)
 
-        error, resonse = device_manager.devCtrl.ZCLSend(
+        error, response = device_manager.devCtrl.ZCLSend(
                 cluster,
                 command,
                 node_id,
@@ -944,7 +944,7 @@ def zcl_command(
         if error:
             return __get_response_dict(status = StatusCodeEnum.FAILED)
         elif response:
-            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(res))
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(response))
         else:
             return __get_response_dict(status = StatusCodeEnum.SUCCESS)
 
