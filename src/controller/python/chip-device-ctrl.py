@@ -780,23 +780,26 @@ def zcl_read_attribute(
 
     Raises:
         exceptions.UnknownCommand: when incorrect cluster and/or command passed
+    
+    Returns:
+        Dict[str, Any]: Dictionary of RPC response for ZCL read
     """
     try:
         all_attrs = device_manager.devCtrl.ZCLAttributeList()
         if attribute not in all_attrs:
             raise exceptions.UnknownCluster(cluster)
         else:
-            error, response = device_manager.devCtrl.ZCLReadAttribute(
+            response = device_manager.devCtrl.ZCLReadAttribute(
                     cluster=cluster,
                     attribute=attribute,
                     nodeid=node_id,
                     endpoint=endpoint_id,
                     groupid=group_id,
                     blocking=True)
-            if error:
+            if response.status:
                 return __get_response_dict(status = StatusCodeEnum.FAILED)
             if response:
-                return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(response))
+                return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(response.value))
             else:
                 return __get_response_dict(status = StatusCodeEnum.SUCCESS)
     except exceptions.ChipStackException as ex:
