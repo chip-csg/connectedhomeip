@@ -106,8 +106,8 @@ async def main():
         print(f"connect: {connect}")
         pase_data = server_1.get_pase_data()
         print(f"pase_data: {pase_data}")
-        #fabric_id = server_1.get_fabric_id()
-        #print(f"fabric_id: {fabric_id}")
+        fabric_id = server_1.get_fabric_id()
+        print(f"fabric_id: {fabric_id}")
         credentials="str:areaaa51"
         ssid="str:UncharteredTerretory"
         zcl_add_network = server_1.zcl_add_network(node_id, ssid, credentials, 0, 0, 0, 1000)
