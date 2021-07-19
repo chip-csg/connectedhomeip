@@ -20,7 +20,6 @@
 '''
 
 import ctypes
-import operator
 from chip.ChipStack import *
 from chip.exceptions import *
 
