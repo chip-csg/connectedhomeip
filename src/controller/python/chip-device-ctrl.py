@@ -785,8 +785,9 @@ def zcl_read_attribute(
         Dict[str, Any]: Dictionary of RPC response for ZCL read
     """
     try:
+        all_commands = self.devCtrl.ZCLCommandList()
         all_attrs = device_manager.devCtrl.ZCLAttributeList()
-        if attribute not in all_attrs:
+        if cluster not in all_commands or attribute not in all_attrs:
             raise exceptions.UnknownCluster(cluster)
         else:
             response = device_manager.devCtrl.ZCLReadAttribute(
