@@ -1,6 +1,7 @@
-import xmlrpc.client
+from xmlrpc.client import ServerProxy
 import docker
 import time
+import xmlrpc
 from docker.models.containers import Container
 import asyncio
 from asyncio import TimeoutError, wait_for
@@ -70,7 +71,7 @@ def call_rpc(device_server,  method_name, *params):
         response_dict = getattr(device_server, method_name)(*params)
         return response_dict['result']
     else:
-        raise RuntimeError(f"RPC Method {method_name} is not available.");
+        raise RuntimeError(f"RPC Method {method_name} is not available.")
 
 async def main():
     try: 
@@ -98,7 +99,6 @@ async def main():
     try: 
         print("Calling RPCs")
         print("echo_alive Response:" + server_1.echo_alive("Test"))
-        parameterList: List = []
         print(server_1.system.listMethods())
         scan = call_rpc(server_1, "ble_scan")
         print(f"scan: {scan}")
@@ -124,6 +124,53 @@ async def main():
         print(f"zcl_read_attributes_VID: {zcl_read_attributes_VID}")
         zcl_read_attributes = server_1.zcl_read_attribute("Basic", "HardwareVersion", node_id, 0, 0)
         print(f"zcl_read_attributes: {zcl_read_attributes}")
+
+        # Network Provisioning commands
+        ssid="str:UncharteredTerretory"
+        credentials="str:areaaa51"
+        zcl_add_network = server_1.zcl_command(
+                "NetworkCommissioning",
+                "AddWiFiNetwork",
+                node_id, 0, 0,
+                {
+                    'breadcrumb':0,
+                    'timeoutMs': 1000,
+                    'ssid':ssid,
+                    'credentials':credentials
+                    }
+                )
+        print(f"zcl_add_network: {zcl_add_network}")
+        zcl_enable_network = server_1.zcl_command(
+                "NetworkCommissioning",
+                "EnableNetwork",
+                node_id,
+                0, 0,
+                {
+                    'breadcrumb':0,
+                    'timeoutMs': 1000,
+                    'networkID':ssid
+                    }
+                )
+        print(f"zcl_enable_network: {zcl_enable_network}")
+
+        # OnOff ZCL commands
+        zcl_on_off = server_1.zcl_command("OnOff", "Toggle", node_id, 1, 0)
+        print(f"zcl_on_off: {zcl_on_off}")
+
+        # LevelControl ZCL commands
+        zcl_level_control = server_1.zcl_command(
+                "LevelControl",
+                "MoveToLevel",
+                node_id,
+                1, 0,
+                {
+                    'level':50, 
+                    'transitionTime':10,
+                    'optionMask':10,
+                    'optionOverride':10
+                    }
+                )
+        print(f"zcl_level_control: {zcl_level_control}")
 
     except Exception as e:
         print(e)
