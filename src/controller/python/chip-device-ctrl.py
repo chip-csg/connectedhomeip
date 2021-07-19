@@ -872,7 +872,8 @@ def __format_zcl_arguments_from_dict(optional_args: dict, command: dict) -> Dict
         elif valueType == 'bytes':
             formatted_command_args[key] = ParseEncodedString(value)
     return formatted_command_args
-    
+   
+
 def zcl_add_network(node_id: int, ssid: str, password: str, endpoint_id: Optional[int] = 1, group_id: Optional[int] = 0, breadcrumb: Optional[int] = 0, timeoutMs: Optional[int] = 1000) -> Dict[str, Any] :
     try:
         __check_supported_os()
@@ -1011,10 +1012,7 @@ def start_rpc_server():
         server.register_function(get_fabric_id)
         server.register_function(pin_code_parse)
         server.register_multicall_functions()
-<<<<<<< HEAD
-=======
         server.register_function(ble_close)
->>>>>>> 01f0a2006638a60da7402b8a4a0e7c422059f8e5
         server.register_introspection_functions()
         print('Serving XML-RPC on localhost port 5000')
         try:
