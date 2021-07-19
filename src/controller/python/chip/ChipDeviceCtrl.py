@@ -241,6 +241,8 @@ class ChipDeviceController(object):
         # We are not using IM for Attributes.
         res = self._Cluster.ReadAttribute(
             device, cluster, attribute, endpoint, groupid, False)
+        if blocking:
+            return im.GetAttributeReadResponse(im.DEFAULT_ATTRIBUTEREAD_APPID)
 
     def ZCLConfigureAttribute(self, cluster, attribute, nodeid, endpoint, minInterval, maxInterval, change, blocking=True):
         device = c_void_p(None)
