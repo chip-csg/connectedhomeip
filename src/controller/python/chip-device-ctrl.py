@@ -816,27 +816,29 @@ def zcl_command(
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
+
 def zcl_read_attribute(
         cluster: str,
         attribute: str,
         node_id: int,
         endpoint_id: Optional[int] = 0,
         group_id: Optional[int] = 0):
-    """Generic RPC call to read ZCL cluster attributes
-    zclread command format: zclread <Cluster> <Attribute> <NodeId> <EndpointId> <GroupId> [arguments]
+    """Generic RPC call to read ZCL cluster attributes.
+    zclread command format: zclread <Cluster> <Attribute> <NodeId>
+        <EndpointId> <GroupId> [arguments]
     
     Args:
-        cluster (str): Name of cluster
-        command (str): Command to be run for the mentioned cluster
-        node_id (int): node_id assigned to the DUT
-        endpoint_id (int): Optional, endpoint id
-        group_ip (int): Optional, group id
+        cluster: Name of cluster.
+        attribute: cluster attribute for which value is to be read.
+        node_id: node_id assigned to the DUT.
+        endpoint_id: Optional, endpoint id.
+        group_ip: Optional, group id.
 
     Raises:
-        exceptions.UnknownCommand: when incorrect cluster and/or command passed
+        exceptions.UnknownCommand: when incorrect cluster and/or command passed.
     
     Returns:
-        Dict[str, Any]: Dictionary of RPC response for ZCL read
+        Dict[str, Any]: Dictionary of RPC response for ZCL read.
     """
     try:
         all_commands = device_manager.devCtrl.ZCLCommandList()
@@ -854,12 +856,12 @@ def zcl_read_attribute(
             if response.status:
                 return __get_response_dict(status = StatusCodeEnum.FAILED)
             if response:
-                return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(response.value))
+                return __get_response_dict(status = StatusCodeEnum.SUCCESS,
+                        result = str(response.value))
             else:
                 return __get_response_dict(status = StatusCodeEnum.SUCCESS)
-    except exceptions.ChipStackException as ex:
-        print("An exception occurred during reading ZCL attribute:")
-        print(str(ex))
+        except Exception as e:
+            return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def __format_zcl_arguments_from_dict(optional_args: dict, command: dict) -> Dict[str, Any]:
     formatted_command_args = {}
