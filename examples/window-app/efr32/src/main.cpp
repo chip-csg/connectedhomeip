@@ -95,7 +95,7 @@ extern "C" void vApplicationIdleHook(void)
 // ================================================================================
 int main(void)
 {
-    int ret = CHIP_ERROR_MAX;
+    int ret = CHIP_CONFIG_CORE_ERROR_MAX;
 
     init_efrPlatform();
 
@@ -125,6 +125,15 @@ int main(void)
         appError(ret);
     }
     chip::DeviceLayer::ConnectivityMgr().SetBLEDeviceName("EFR32_WINDOW");
+
+    EFR32_LOG("Starting Platform Manager Event Loop");
+    ret = PlatformMgr().StartEventLoopTask();
+    if (ret != CHIP_NO_ERROR)
+    {
+        EFR32_LOG("PlatformMgr().StartEventLoopTask() failed");
+        appError(ret);
+    }
+
 #if CHIP_ENABLE_OPENTHREAD
     EFR32_LOG("Initializing OpenThread stack");
     ret = ThreadStackMgr().InitThreadStack();
@@ -140,17 +149,7 @@ int main(void)
         EFR32_LOG("ConnectivityMgr().SetThreadDeviceType() failed");
         appError(ret);
     }
-#endif // CHIP_ENABLE_OPENTHREAD
 
-    EFR32_LOG("Starting Platform Manager Event Loop");
-    ret = PlatformMgr().StartEventLoopTask();
-    if (ret != CHIP_NO_ERROR)
-    {
-        EFR32_LOG("PlatformMgr().StartEventLoopTask() failed");
-        appError(ret);
-    }
-
-#if CHIP_ENABLE_OPENTHREAD
     EFR32_LOG("Starting OpenThread task");
 
     // Start OpenThread task

@@ -22,6 +22,7 @@
  *
  */
 
+#include <app/AppBuildConfig.h>
 #include <app/InteractionModelEngine.h>
 #include <app/MessageDef/EventPath.h>
 #include <app/ReadHandler.h>
@@ -33,7 +34,6 @@ CHIP_ERROR ReadHandler::Init(InteractionModelDelegate * apDelegate)
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
     // Error if already initialized.
-    VerifyOrExit(apDelegate != nullptr, err = CHIP_ERROR_INCORRECT_STATE);
     VerifyOrExit(mpExchangeCtx == nullptr, err = CHIP_ERROR_INCORRECT_STATE);
     mpExchangeCtx              = nullptr;
     mpDelegate                 = apDelegate;
@@ -78,9 +78,7 @@ CHIP_ERROR ReadHandler::OnReadRequest(Messaging::ExchangeContext * apExchangeCon
 
     mpExchangeCtx = apExchangeContext;
     err           = ProcessReadRequest(std::move(aPayload));
-    SuccessOrExit(err);
 
-exit:
     if (err != CHIP_NO_ERROR)
     {
         ChipLogFunctError(err);
@@ -184,15 +182,26 @@ CHIP_ERROR ReadHandler::ProcessAttributePathList(AttributePathList::Parser & aAt
         err = path.GetFieldId(&(clusterInfo.mFieldId));
         if (CHIP_NO_ERROR == err)
         {
-            clusterInfo.mType = ClusterInfo::Type::kFieldIdValid;
+            clusterInfo.mFlags.Set(ClusterInfo::Flags::kFieldIdValid);
         }
         else if (CHIP_END_OF_TLV == err)
         {
-            err = path.GetListIndex(&(clusterInfo.mListIndex));
-            SuccessOrExit(err);
-            clusterInfo.mType = ClusterInfo::Type::kListIndexValid;
+            err = CHIP_NO_ERROR;
         }
         SuccessOrExit(err);
+
+        err = path.GetListIndex(&(clusterInfo.mListIndex));
+        if (CHIP_NO_ERROR == err)
+        {
+            VerifyOrExit(clusterInfo.mFlags.Has(ClusterInfo::Flags::kFieldIdValid), err = CHIP_ERROR_IM_MALFORMED_ATTRIBUTE_PATH);
+            clusterInfo.mFlags.Set(ClusterInfo::Flags::kListIndexValid);
+        }
+        else if (CHIP_END_OF_TLV == err)
+        {
+            err = CHIP_NO_ERROR;
+        }
+        SuccessOrExit(err);
+
         err = InteractionModelEngine::GetInstance()->PushFront(mpAttributeClusterInfoList, clusterInfo);
         SuccessOrExit(err);
         mpAttributeClusterInfoList->SetDirty();
@@ -229,9 +238,16 @@ CHIP_ERROR ReadHandler::ProcessEventPathList(EventPathList::Parser & aEventPathL
         err = path.GetClusterId(&(clusterInfo.mClusterId));
         SuccessOrExit(err);
         err = path.GetEventId(&(clusterInfo.mEventId));
+        if (CHIP_NO_ERROR == err)
+        {
+            clusterInfo.mFlags.Set(ClusterInfo::Flags::kEventIdValid);
+        }
+        else if (CHIP_END_OF_TLV == err)
+        {
+            err = CHIP_NO_ERROR;
+        }
         SuccessOrExit(err);
-        clusterInfo.mType = ClusterInfo::Type::kEventIdValid;
-        err               = InteractionModelEngine::GetInstance()->PushFront(mpEventClusterInfoList, clusterInfo);
+        err = InteractionModelEngine::GetInstance()->PushFront(mpEventClusterInfoList, clusterInfo);
         SuccessOrExit(err);
     }
 

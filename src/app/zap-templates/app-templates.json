@@ -23,10 +23,6 @@
             "path": "partials/cluster_header.zapt"
         },
         {
-            "name": "command_handler_cluster_commands",
-            "path": "partials/command_handler_cluster_commands.zapt"
-        },
-        {
             "name": "im_command_handler_cluster_commands",
             "path": "partials/im_command_handler_cluster_commands.zapt"
         }
@@ -38,24 +34,9 @@
             "output": "attribute-size.cpp"
         },
         {
-            "path": "templates/app/call-command-handler-src.zapt",
-            "name": "ZCL call-command-handler source",
-            "output": "call-command-handler.cpp"
-        },
-        {
-            "path": "templates/app/call-command-handler.zapt",
-            "name": "ZCL call-command-handler header",
-            "output": "call-command-handler.h"
-        },
-        {
             "path": "templates/app/callback-stub-src.zapt",
             "name": "ZCL callback-stub source",
             "output": "callback-stub.cpp"
-        },
-        {
-            "path": "templates/app/callback.zapt",
-            "name": "ZCL callback header",
-            "output": "callback.h"
         },
         {
             "path": "templates/app/chip-zcl-zpro-codec-api.zapt",

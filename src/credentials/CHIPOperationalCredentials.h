@@ -28,6 +28,9 @@
 #include <credentials/CHIPCert.h>
 #include <crypto/CHIPCryptoPAL.h>
 #include <support/DLLUtil.h>
+#if CHIP_CRYPTO_HSM
+#include <crypto/hsm/CHIPCryptoPALHsm.h>
+#endif
 
 #include <algorithm>
 #include <map>
@@ -45,6 +48,18 @@ struct NodeCredential
     uint16_t mLen         = 0;
 };
 
+struct OperationalCredentialSerializable
+{
+    uint16_t mNodeCredentialLen;
+    uint8_t mNodeCredential[kMaxCHIPCertLength];
+    uint16_t mNodeKeypairLen;
+    uint8_t mNodeKeypair[kP256_PublicKey_Length + kP256_PrivateKey_Length];
+    uint16_t mRootCertificateLen;
+    uint8_t mRootCertificate[kMaxCHIPCertLength];
+    uint16_t mCACertificateLen;
+    uint8_t mCACertificate[kMaxCHIPCertLength];
+};
+
 struct NodeCredentialMap
 {
     CertificateKeyId trustedRootId;
@@ -54,7 +69,11 @@ struct NodeCredentialMap
 struct NodeKeypairMap
 {
     CertificateKeyId trustedRootId;
+#ifdef ENABLE_HSM_CASE_OPS_KEY
+    P256KeypairHSM keypair;
+#else
     P256Keypair keypair;
+#endif
 };
 
 /**
@@ -140,7 +159,7 @@ public:
      *
      * @return A pointer to the Trusted Root ID on success. Otherwise, nullptr if no Trust Anchor is found.
      **/
-    const CertificateKeyId * GetTrustedRootId(uint16_t certSetIndex) const;
+    CertificateKeyId GetTrustedRootId(uint16_t certSetIndex) const;
 
     /**
      * @brief Check whether certificate set is in the operational credential set.
@@ -219,21 +238,38 @@ public:
     CHIP_ERROR SetDevOpCred(const CertificateKeyId & trustedRootId, const uint8_t * chipDeviceCredentials,
                             uint16_t chipDeviceCredentialsLen);
 
+    /**
+     *  @brief
+     *    Serialize the OperationalCredentialSet indexed by a TrustedRootID to the given serializable data structure
+     *
+     *    This method must be called while the OperationalCredentialSet class is valid (After Init and before Release)
+     */
+    CHIP_ERROR ToSerializable(const CertificateKeyId & trustedRootId, OperationalCredentialSerializable & output);
+
+    /**
+     *  @brief
+     *    Reconstruct OperationalCredentialSet class from the serializable data structure.
+     *
+     *    This method must be called after initializing the OperationalCredentialSet class with internal allocation.
+     *    No references/pointers to the input parameter are made. The input parameter can be freed after calling this method.
+     */
+    CHIP_ERROR FromSerializable(const OperationalCredentialSerializable & input);
+
     P256Keypair & GetDevOpCredKeypair(const CertificateKeyId & trustedRootId) { return *GetNodeKeypairAt(trustedRootId); }
 
     CHIP_ERROR SetDevOpCredKeypair(const CertificateKeyId & trustedRootId, P256Keypair * newKeypair);
 
 private:
-    ChipCertificateSet * mOpCreds; /**< Pointer to an array of certificate data. */
-    uint8_t mOpCredCount;          /**< Number of certificates in mOpCreds
-                                    array. We maintain the invariant that all
-                                    the slots at indices less than
-                                    mCertCount have been constructed and slots
-                                    at indices >= mCertCount have either never
-                                    had their constructor called, or have had
-                                    their destructor called since then. */
-    uint8_t mMaxCerts;             /**< Length of mOpCreds array. */
-    bool mMemoryAllocInternal;     /**< Indicates whether temporary memory buffers are allocated internally. */
+    ChipCertificateSet * mOpCreds;     /**< Pointer to an array of certificate data. */
+    uint8_t mOpCredCount;              /**< Number of certificates in mOpCreds
+                                        array. We maintain the invariant that all
+                                        the slots at indices less than
+                                        mCertCount have been constructed and slots
+                                        at indices >= mCertCount have either never
+                                        had their constructor called, or have had
+                                        their destructor called since then. */
+    uint8_t mMaxCerts;                 /**< Length of mOpCreds array. */
+    bool mMemoryAllocInternal = false; /**< Indicates whether temporary memory buffers are allocated internally. */
     NodeCredentialMap mChipDeviceCredentials[kOperationalCredentialsMax];
     uint8_t mChipDeviceCredentialsCount;
     NodeKeypairMap mDeviceOpCredKeypair[kOperationalCredentialsMax];

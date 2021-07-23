@@ -44,8 +44,7 @@
 #include <app/util/attribute-storage.h>
 
 #include <app/common/gen/attribute-type.h>
-
-#include "gen/callback.h"
+#include <app/common/gen/callback.h>
 
 using namespace chip;
 
@@ -70,7 +69,7 @@ uint8_t attributeData[ACTUAL_ATTRIBUTE_SIZE];
 #endif
 uint8_t singletonAttributeData[ACTUAL_SINGLETONS_SIZE];
 
-uint8_t emberEndpointCount = 0;
+uint16_t emberEndpointCount = 0;
 
 // If we have attributes that are more than 2 bytes, then
 // we need this data block for the defaults
@@ -114,7 +113,11 @@ const uint16_t attributeManufacturerCodeCount                   = GENERATED_ATTR
 // Forward declarations
 
 // Returns endpoint index within a given cluster
-static uint8_t findClusterEndpointIndex(EndpointId endpoint, ClusterId clusterId, uint8_t mask, uint16_t manufacturerCode);
+static uint16_t findClusterEndpointIndex(EndpointId endpoint, ClusterId clusterId, uint8_t mask, uint16_t manufacturerCode);
+
+#ifdef ZCL_USING_DESCRIPTOR_CLUSTER_SERVER
+void emberAfPluginDescriptorServerInitCallback(void);
+#endif
 
 //------------------------------------------------------------------------------
 
@@ -124,7 +127,7 @@ void emberAfEndpointConfigure(void)
     uint8_t ep;
 
 #if !defined(EMBER_SCRIPTED_TEST)
-    uint8_t fixedEndpoints[]            = FIXED_ENDPOINT_ARRAY;
+    uint16_t fixedEndpoints[]           = FIXED_ENDPOINT_ARRAY;
     uint16_t fixedDeviceIds[]           = FIXED_DEVICE_IDS;
     uint8_t fixedDeviceVersions[]       = FIXED_DEVICE_VERSIONS;
     uint8_t fixedEmberAfEndpointTypes[] = FIXED_ENDPOINT_TYPES;
@@ -141,24 +144,107 @@ void emberAfEndpointConfigure(void)
         emAfEndpoints[ep].networkIndex  = endpointNetworkIndex(ep);
         emAfEndpoints[ep].bitmask       = EMBER_AF_ENDPOINT_ENABLED;
     }
+
+#ifdef DYNAMIC_ENDPOINT_COUNT
+    if (MAX_ENDPOINT_COUNT > FIXED_ENDPOINT_COUNT)
+    {
+        memset(&emAfEndpoints[FIXED_ENDPOINT_COUNT], 0,
+               sizeof(EmberAfDefinedEndpoint) * (MAX_ENDPOINT_COUNT - FIXED_ENDPOINT_COUNT));
+    }
+#endif
 }
 
-void emberAfSetEndpointCount(uint8_t dynamicEndpointCount)
+void emberAfSetDynamicEndpointCount(uint16_t dynamicEndpointCount)
 {
-    emberEndpointCount = static_cast<uint8_t>(FIXED_ENDPOINT_COUNT + dynamicEndpointCount);
+    emberEndpointCount = static_cast<uint16_t>(FIXED_ENDPOINT_COUNT + dynamicEndpointCount);
 }
 
-uint8_t emberAfFixedEndpointCount(void)
+uint16_t emberAfGetDynamicIndexFromEndpoint(EndpointId id)
+{
+    uint16_t index;
+    for (index = FIXED_ENDPOINT_COUNT; index < MAX_ENDPOINT_COUNT; index++)
+    {
+        if (emAfEndpoints[index].endpoint == id)
+        {
+            return static_cast<uint8_t>(index - FIXED_ENDPOINT_COUNT);
+        }
+    }
+    return 0xFFFF;
+}
+
+EmberAfStatus emberAfSetDynamicEndpoint(uint16_t index, EndpointId id, EmberAfEndpointType * ep, uint16_t deviceId,
+                                        uint8_t deviceVersion)
+{
+    auto realIndex = index + FIXED_ENDPOINT_COUNT;
+
+    if (realIndex >= MAX_ENDPOINT_COUNT)
+    {
+        return EMBER_ZCL_STATUS_INSUFFICIENT_SPACE;
+    }
+
+    index = static_cast<uint16_t>(realIndex);
+    for (uint16_t i = FIXED_ENDPOINT_COUNT; i < MAX_ENDPOINT_COUNT; i++)
+    {
+        if (emAfEndpoints[i].endpoint == id)
+        {
+            return EMBER_ZCL_STATUS_DUPLICATE_EXISTS;
+        }
+    }
+
+    emAfEndpoints[index].endpoint      = id;
+    emAfEndpoints[index].deviceId      = deviceId;
+    emAfEndpoints[index].deviceVersion = deviceVersion;
+    emAfEndpoints[index].endpointType  = ep;
+    emAfEndpoints[index].networkIndex  = 0;
+    emAfEndpoints[index].bitmask       = EMBER_AF_ENDPOINT_ENABLED;
+
+    emberAfSetDynamicEndpointCount(MAX_ENDPOINT_COUNT - FIXED_ENDPOINT_COUNT);
+    emberAfSetDeviceEnabled(id, true);
+
+#ifdef ZCL_USING_DESCRIPTOR_CLUSTER_SERVER
+    // Rebuild descriptor attributes on all endpoints
+    emberAfPluginDescriptorServerInitCallback();
+#endif
+
+    return EMBER_ZCL_STATUS_SUCCESS;
+}
+
+EndpointId emberAfClearDynamicEndpoint(uint16_t index)
+{
+    EndpointId ep = 0;
+
+    index = static_cast<uint8_t>(index + FIXED_ENDPOINT_COUNT);
+
+    if ((index < MAX_ENDPOINT_COUNT) && (emAfEndpoints[index].endpoint != 0) && (emberAfEndpointIndexIsEnabled(index)))
+    {
+        ep = emAfEndpoints[index].endpoint;
+        if (ep)
+        {
+            emberAfSetDeviceEnabled(ep, false);
+            emAfEndpoints[index].endpoint = 0;
+            emAfEndpoints[index].bitmask  = 0;
+        }
+
+#ifdef ZCL_USING_DESCRIPTOR_CLUSTER_SERVER
+        // Rebuild descriptor attributes on all endpoints
+        emberAfPluginDescriptorServerInitCallback();
+#endif
+    }
+
+    return ep;
+}
+
+uint16_t emberAfFixedEndpointCount(void)
 {
     return FIXED_ENDPOINT_COUNT;
 }
 
-uint8_t emberAfEndpointCount(void)
+uint16_t emberAfEndpointCount(void)
 {
     return emberEndpointCount;
 }
 
-bool emberAfEndpointIndexIsEnabled(uint8_t index)
+bool emberAfEndpointIndexIsEnabled(uint16_t index)
 {
     return (emAfEndpoints[index].bitmask & EMBER_AF_ENDPOINT_ENABLED);
 }
@@ -187,7 +273,7 @@ bool emberAfIsThisDataTypeAListType(EmberAfAttributeType dataType)
 }
 
 // This function is used to call the per-cluster default response callback
-void emberAfClusterDefaultResponseWithMfgCodeCallback(EndpointId endpoint, ClusterId clusterId, uint8_t commandId,
+void emberAfClusterDefaultResponseWithMfgCodeCallback(EndpointId endpoint, ClusterId clusterId, CommandId commandId,
                                                       EmberAfStatus status, uint8_t clientServerMask, uint16_t manufacturerCode)
 {
     EmberAfCluster * cluster = emberAfFindClusterWithMfgCode(endpoint, clusterId, clientServerMask, manufacturerCode);
@@ -214,9 +300,8 @@ void emberAfClusterDefaultResponseCallback(EndpointId endpoint, ClusterId cluste
 }
 
 // This function is used to call the per-cluster message sent callback
-void emberAfClusterMessageSentWithMfgCodeCallback(EmberOutgoingMessageType type, MessageSendDestination destination,
-                                                  EmberApsFrame * apsFrame, uint16_t msgLen, uint8_t * message, EmberStatus status,
-                                                  uint16_t mfgCode)
+void emberAfClusterMessageSentWithMfgCodeCallback(const MessageSendDestination & destination, EmberApsFrame * apsFrame,
+                                                  uint16_t msgLen, uint8_t * message, EmberStatus status, uint16_t mfgCode)
 {
     if (apsFrame != NULL && message != NULL && msgLen != 0)
     {
@@ -231,7 +316,7 @@ void emberAfClusterMessageSentWithMfgCodeCallback(EmberOutgoingMessageType type,
             if (f != NULL)
             {
                 // emberAfPushEndpointNetworkIndex(apsFrame->sourceEndpoint);
-                ((EmberAfMessageSentFunction) f)(type, destination, apsFrame, msgLen, message, status);
+                ((EmberAfMessageSentFunction) f)(destination, apsFrame, msgLen, message, status);
                 // emberAfPopNetworkIndex();
             }
         }
@@ -241,11 +326,10 @@ void emberAfClusterMessageSentWithMfgCodeCallback(EmberOutgoingMessageType type,
 // This function is used to call the per-cluster message sent callback, and
 // wraps the emberAfClusterMessageSentWithMfgCodeCallback with a
 // EMBER_AF_NULL_MANUFACTURER_CODE.
-void emberAfClusterMessageSentCallback(EmberOutgoingMessageType type, MessageSendDestination destination, EmberApsFrame * apsFrame,
-                                       uint16_t msgLen, uint8_t * message, EmberStatus status)
+void emberAfClusterMessageSentCallback(const MessageSendDestination & destination, EmberApsFrame * apsFrame, uint16_t msgLen,
+                                       uint8_t * message, EmberStatus status)
 {
-    emberAfClusterMessageSentWithMfgCodeCallback(type, destination, apsFrame, msgLen, message, status,
-                                                 EMBER_AF_NULL_MANUFACTURER_CODE);
+    emberAfClusterMessageSentWithMfgCodeCallback(destination, apsFrame, msgLen, message, status, EMBER_AF_NULL_MANUFACTURER_CODE);
 }
 
 // This function is used to call the per-cluster attribute changed callback
@@ -396,7 +480,7 @@ static EmberAfStatus typeSensitiveMemCopy(ClusterId clusterId, uint8_t * dest, u
         {
             return EMBER_ZCL_STATUS_INSUFFICIENT_SPACE;
         }
-        emberAfCopyString(dest, src, static_cast<uint8_t>(bufferSize - 1));
+        emberAfCopyString(dest, src, bufferSize - 1);
     }
     else if (emberAfIsLongStringAttributeType(attributeType))
     {
@@ -404,7 +488,7 @@ static EmberAfStatus typeSensitiveMemCopy(ClusterId clusterId, uint8_t * dest, u
         {
             return EMBER_ZCL_STATUS_INSUFFICIENT_SPACE;
         }
-        emberAfCopyLongString(dest, src, static_cast<uint16_t>(bufferSize - 2));
+        emberAfCopyLongString(dest, src, bufferSize - 2);
     }
     else if (emberAfIsThisDataTypeAListType(attributeType))
     {
@@ -591,11 +675,11 @@ EmberAfStatus emAfReadOrWriteAttribute(EmberAfAttributeSearchRecord * attRecord,
                                 return (am->mask & ATTRIBUTE_MASK_EXTERNAL_STORAGE
                                             ? (write) ? emberAfExternalAttributeWriteCallback(
                                                             attRecord->endpoint, attRecord->clusterId, am,
-                                                            emAfGetManufacturerCodeForAttribute(cluster, am), buffer)
+                                                            emAfGetManufacturerCodeForAttribute(cluster, am), buffer, index)
                                                       : emberAfExternalAttributeReadCallback(
                                                             attRecord->endpoint, attRecord->clusterId, am,
                                                             emAfGetManufacturerCodeForAttribute(cluster, am), buffer,
-                                                            emberAfAttributeSize(am))
+                                                            emberAfAttributeSize(am), index)
                                             : typeSensitiveMemCopy(attRecord->clusterId, dst, src, am, write, readLength, index));
                             }
                         }
@@ -617,7 +701,11 @@ EmberAfStatus emAfReadOrWriteAttribute(EmberAfAttributeSearchRecord * attRecord,
         }
         else
         { // Not the endpoint we are looking for
-            attributeOffsetIndex = static_cast<uint16_t>(attributeOffsetIndex + emAfEndpoints[i].endpointType->endpointSize);
+            // Dynamic endpoints are external and don't factor into storage size
+            if (i < emberAfFixedEndpointCount())
+            {
+                attributeOffsetIndex = static_cast<uint16_t>(attributeOffsetIndex + emAfEndpoints[i].endpointType->endpointSize);
+            }
         }
     }
     return EMBER_ZCL_STATUS_UNSUPPORTED_ATTRIBUTE; // Sorry, attribute was not found.
@@ -723,8 +811,8 @@ bool emberAfContainsClient(EndpointId endpoint, ClusterId clusterId)
 EmberAfCluster * emberAfFindClusterWithMfgCode(EndpointId endpoint, ClusterId clusterId, EmberAfClusterMask mask,
                                                uint16_t manufacturerCode)
 {
-    uint8_t ep = emberAfIndexFromEndpoint(endpoint);
-    if (ep == 0xFF)
+    uint16_t ep = emberAfIndexFromEndpoint(endpoint);
+    if (ep == 0xFFFF)
     {
         return NULL;
     }
@@ -746,7 +834,7 @@ EmberAfCluster * emberAfFindCluster(EndpointId endpoint, ClusterId clusterId, Em
 EmberAfCluster * emberAfFindClusterIncludingDisabledEndpointsWithMfgCode(EndpointId endpoint, ClusterId clusterId,
                                                                          EmberAfClusterMask mask, uint16_t manufacturerCode)
 {
-    uint8_t ep = emberAfIndexFromEndpointIncludingDisabledEndpoints(endpoint);
+    uint16_t ep = emberAfIndexFromEndpointIncludingDisabledEndpoints(endpoint);
     if (ep < MAX_ENDPOINT_COUNT)
     {
         return emberAfFindClusterInTypeWithMfgCode(emAfEndpoints[ep].endpointType, clusterId, mask, manufacturerCode);
@@ -762,35 +850,36 @@ EmberAfCluster * emberAfFindClusterIncludingDisabledEndpoints(EndpointId endpoin
 }
 
 // Server wrapper for findClusterEndpointIndex.
-static uint8_t emberAfFindClusterServerEndpointIndexWithMfgCode(EndpointId endpoint, ClusterId clusterId, uint16_t manufacturerCode)
+static uint16_t emberAfFindClusterServerEndpointIndexWithMfgCode(EndpointId endpoint, ClusterId clusterId,
+                                                                 uint16_t manufacturerCode)
 {
     return findClusterEndpointIndex(endpoint, clusterId, CLUSTER_MASK_SERVER, manufacturerCode);
 }
 
 // Client wrapper for findClusterEndpointIndex.
-uint8_t emberAfFindClusterClientEndpointIndexWithMfgCode(EndpointId endpoint, ClusterId clusterId, uint16_t manufacturerCode)
+uint16_t emberAfFindClusterClientEndpointIndexWithMfgCode(EndpointId endpoint, ClusterId clusterId, uint16_t manufacturerCode)
 {
     return findClusterEndpointIndex(endpoint, clusterId, CLUSTER_MASK_CLIENT, manufacturerCode);
 }
 
 // Server wrapper for findClusterEndpointIndex
 // This will ignore manufacturerCode, and return the index for the first server that matches on clusterId
-uint8_t emberAfFindClusterServerEndpointIndex(EndpointId endpoint, ClusterId clusterId)
+uint16_t emberAfFindClusterServerEndpointIndex(EndpointId endpoint, ClusterId clusterId)
 {
     return emberAfFindClusterServerEndpointIndexWithMfgCode(endpoint, clusterId, EMBER_AF_NULL_MANUFACTURER_CODE);
 }
 
 // Client wrapper for findClusterEndpointIndex
 // This will ignore manufacturerCode, and return the index for the first client that matches on clusterId
-uint8_t emberAfFindClusterClientEndpointIndex(EndpointId endpoint, ClusterId clusterId)
+uint16_t emberAfFindClusterClientEndpointIndex(EndpointId endpoint, ClusterId clusterId)
 {
     return emberAfFindClusterClientEndpointIndexWithMfgCode(endpoint, clusterId, EMBER_AF_NULL_MANUFACTURER_CODE);
 }
 
 // Returns the endpoint index within a given cluster
-static uint8_t findClusterEndpointIndex(EndpointId endpoint, ClusterId clusterId, uint8_t mask, uint16_t manufacturerCode)
+static uint16_t findClusterEndpointIndex(EndpointId endpoint, ClusterId clusterId, uint8_t mask, uint16_t manufacturerCode)
 {
-    uint8_t i, epi = 0;
+    uint16_t i, epi = 0;
 
     if (emberAfFindClusterWithMfgCode(endpoint, clusterId, mask, manufacturerCode) == NULL)
     {
@@ -803,19 +892,19 @@ static uint8_t findClusterEndpointIndex(EndpointId endpoint, ClusterId clusterId
         {
             break;
         }
-        epi = static_cast<uint8_t>(epi +
-                                   ((emberAfFindClusterIncludingDisabledEndpointsWithMfgCode(emAfEndpoints[i].endpoint, clusterId,
-                                                                                             mask, manufacturerCode) != NULL)
-                                        ? 1
-                                        : 0));
+        epi = static_cast<uint16_t>(epi +
+                                    ((emberAfFindClusterIncludingDisabledEndpointsWithMfgCode(emAfEndpoints[i].endpoint, clusterId,
+                                                                                              mask, manufacturerCode) != NULL)
+                                         ? 1
+                                         : 0));
     }
 
     return epi;
 }
 
-static uint8_t findIndexFromEndpoint(EndpointId endpoint, bool ignoreDisabledEndpoints)
+static uint16_t findIndexFromEndpoint(EndpointId endpoint, bool ignoreDisabledEndpoints)
 {
-    uint8_t epi;
+    uint16_t epi;
     for (epi = 0; epi < emberAfEndpointCount(); epi++)
     {
         if (emAfEndpoints[epi].endpoint == endpoint &&
@@ -829,12 +918,12 @@ static uint8_t findIndexFromEndpoint(EndpointId endpoint, bool ignoreDisabledEnd
 
 bool emberAfEndpointIsEnabled(EndpointId endpoint)
 {
-    uint8_t index = findIndexFromEndpoint(endpoint,
-                                          false); // ignore disabled endpoints?
+    uint16_t index = findIndexFromEndpoint(endpoint,
+                                           false); // ignore disabled endpoints?
 
-    EMBER_TEST_ASSERT(0xFF != index);
+    EMBER_TEST_ASSERT(0xFFFF != index);
 
-    if (0xFF == index)
+    if (0xFFFF == index)
     {
         return false;
     }
@@ -842,76 +931,76 @@ bool emberAfEndpointIsEnabled(EndpointId endpoint)
     return emberAfEndpointIndexIsEnabled(index);
 }
 
-// bool emberAfEndpointEnableDisable(EndpointId endpoint, bool enable)
-// {
-//     uint8_t index = findIndexFromEndpoint(endpoint,
-//                                           false); // ignore disabled endpoints?
-//     bool currentlyEnabled;
+bool emberAfEndpointEnableDisable(EndpointId endpoint, bool enable)
+{
+    uint16_t index = findIndexFromEndpoint(endpoint,
+                                           false); // ignore disabled endpoints?
+    bool currentlyEnabled;
 
-//     if (0xFF == index)
-//     {
-//         return false;
-//     }
+    if (0xFFFF == index)
+    {
+        return false;
+    }
 
-//     currentlyEnabled = emAfEndpoints[index].bitmask & EMBER_AF_ENDPOINT_ENABLED;
+    currentlyEnabled = emAfEndpoints[index].bitmask & EMBER_AF_ENDPOINT_ENABLED;
 
-//     if (enable)
-//     {
-//         emAfEndpoints[index].bitmask |= EMBER_AF_ENDPOINT_ENABLED;
-//     }
-//     else
-//     {
-//         emAfEndpoints[index].bitmask &= EMBER_AF_ENDPOINT_DISABLED;
-//     }
+    if (enable)
+    {
+        emAfEndpoints[index].bitmask |= EMBER_AF_ENDPOINT_ENABLED;
+    }
+    else
+    {
+        emAfEndpoints[index].bitmask &= EMBER_AF_ENDPOINT_DISABLED;
+    }
 
-// #if defined(EZSP_HOST)
-//     ezspSetEndpointFlags(endpoint, (enable ? EZSP_ENDPOINT_ENABLED : EZSP_ENDPOINT_DISABLED));
-// #endif
+#if defined(EZSP_HOST)
+    ezspSetEndpointFlags(endpoint, (enable ? EZSP_ENDPOINT_ENABLED : EZSP_ENDPOINT_DISABLED));
+#endif
 
-//     if (currentlyEnabled != enable)
-//     {
-//         if (enable)
-//         {
-//             initializeEndpoint(&(emAfEndpoints[index]));
-//         }
-//         else
-//         {
-//             uint8_t i;
-//             for (i = 0; i < emAfEndpoints[index].endpointType->clusterCount; i++)
-//             {
-//                 EmberAfCluster * cluster = &((emAfEndpoints[index].endpointType->cluster)[i]);
-//                 //        emberAfCorePrintln("Disabling cluster tick for ep:%d, cluster:0x%2X, %p",
-//                 //                           endpoint,
-//                 //                           cluster->clusterId,
-//                 //                           ((cluster->mask & CLUSTER_MASK_CLIENT)
-//                 //                            ? "client"
-//                 //                            : "server"));
-//                 //        emberAfCoreFlush();
-//                 emberAfDeactivateClusterTick(
-//                     endpoint, cluster->clusterId,
-//                     (cluster->mask & CLUSTER_MASK_CLIENT ? EMBER_AF_CLIENT_CLUSTER_TICK : EMBER_AF_SERVER_CLUSTER_TICK));
-//             }
-//         }
-//     }
+    if (currentlyEnabled != enable)
+    {
+        if (enable)
+        {
+            initializeEndpoint(&(emAfEndpoints[index]));
+        }
+        else
+        {
+            uint8_t i;
+            for (i = 0; i < emAfEndpoints[index].endpointType->clusterCount; i++)
+            {
+                EmberAfCluster * cluster = &((emAfEndpoints[index].endpointType->cluster)[i]);
+                //        emberAfCorePrintln("Disabling cluster tick for ep:%d, cluster:0x%2X, %p",
+                //                           endpoint,
+                //                           cluster->clusterId,
+                //                           ((cluster->mask & CLUSTER_MASK_CLIENT)
+                //                            ? "client"
+                //                            : "server"));
+                //        emberAfCoreFlush();
+                emberAfDeactivateClusterTick(
+                    endpoint, cluster->clusterId,
+                    (cluster->mask & CLUSTER_MASK_CLIENT ? EMBER_AF_CLIENT_CLUSTER_TICK : EMBER_AF_SERVER_CLUSTER_TICK));
+            }
+        }
+    }
 
-//     return true;
-// }
+    return true;
+}
 
 // Returns the index of a given endpoint.  Does not consider disabled endpoints.
-uint8_t emberAfIndexFromEndpoint(EndpointId endpoint)
+uint16_t emberAfIndexFromEndpoint(EndpointId endpoint)
 {
     return findIndexFromEndpoint(endpoint,
                                  true); // ignore disabled endpoints?
 }
 
 // Returns the index of a given endpoint.  Considers disabled endpoints.
-uint8_t emberAfIndexFromEndpointIncludingDisabledEndpoints(EndpointId endpoint)
+uint16_t emberAfIndexFromEndpointIncludingDisabledEndpoints(EndpointId endpoint)
 {
     return findIndexFromEndpoint(endpoint,
                                  false); // ignore disabled endpoints?
 }
 
-EndpointId emberAfEndpointFromIndex(uint8_t index)
+EndpointId emberAfEndpointFromIndex(uint16_t index)
 {
     return emAfEndpoints[index].endpoint;
 }
@@ -920,12 +1009,12 @@ EndpointId emberAfEndpointFromIndex(uint8_t index)
 // otherwise number of client clusters on this endpoint
 uint8_t emberAfClusterCount(EndpointId endpoint, bool server)
 {
-    uint8_t index = emberAfIndexFromEndpoint(endpoint);
+    uint16_t index = emberAfIndexFromEndpoint(endpoint);
     uint8_t i, c = 0;
     EmberAfDefinedEndpoint * de;
     EmberAfCluster * cluster;
 
-    if (index == 0xFF)
+    if (index == 0xFFFF)
     {
         return 0;
     }
@@ -951,8 +1040,8 @@ uint8_t emberAfClusterCount(EndpointId endpoint, bool server)
 
 uint8_t emberAfGetClusterCountForEndpoint(EndpointId endpoint)
 {
-    uint8_t index = emberAfIndexFromEndpoint(endpoint);
-    if (index == 0xFF)
+    uint16_t index = emberAfIndexFromEndpoint(endpoint);
+    if (index == 0xFFFF)
     {
         return 0;
     }
@@ -970,10 +1059,10 @@ uint8_t emberAfGetClusterCountForEndpoint(EndpointId endpoint)
 // Don't mix them.
 EmberAfCluster * emberAfGetClusterByIndex(EndpointId endpoint, uint8_t clusterIndex)
 {
-    uint8_t endpointIndex = emberAfIndexFromEndpoint(endpoint);
+    uint16_t endpointIndex = emberAfIndexFromEndpoint(endpoint);
     EmberAfDefinedEndpoint * definedEndpoint;
 
-    if (endpointIndex == 0xFF)
+    if (endpointIndex == 0xFFFF)
     {
         return NULL;
     }
@@ -988,8 +1077,8 @@ EmberAfCluster * emberAfGetClusterByIndex(EndpointId endpoint, uint8_t clusterIn
 
 uint16_t emberAfGetDeviceIdForEndpoint(EndpointId endpoint)
 {
-    uint8_t endpointIndex = emberAfIndexFromEndpoint(endpoint);
-    if (endpointIndex == 0xFF)
+    uint16_t endpointIndex = emberAfIndexFromEndpoint(endpoint);
+    if (endpointIndex == 0xFFFF)
     {
         return 0xFFFF;
     }
@@ -1000,12 +1089,12 @@ uint16_t emberAfGetDeviceIdForEndpoint(EndpointId endpoint)
 // depending on server toggle.
 EmberAfCluster * emberAfGetNthCluster(EndpointId endpoint, uint8_t n, bool server)
 {
-    uint8_t index = emberAfIndexFromEndpoint(endpoint);
+    uint16_t index = emberAfIndexFromEndpoint(endpoint);
     EmberAfDefinedEndpoint * de;
     uint8_t i, c = 0;
     EmberAfCluster * cluster;
 
-    if (index == 0xFF)
+    if (index == 0xFFFF)
     {
         return NULL;
     }
@@ -1058,10 +1147,11 @@ void emberAfResetAttributes(EndpointId endpoint)
 
 void emAfLoadAttributeDefaults(EndpointId endpoint, bool writeTokens)
 {
-    uint8_t ep, clusterI, curNetwork = 0 /* emberGetCurrentNetwork() */;
+    uint16_t ep;
+    uint8_t clusterI, curNetwork = 0 /* emberGetCurrentNetwork() */;
     uint16_t attr;
     uint8_t * ptr;
-    uint8_t epCount = emberAfEndpointCount();
+    uint16_t epCount = emberAfEndpointCount();
 
     for (ep = 0; ep < epCount; ep++)
     {
@@ -1069,7 +1159,7 @@ void emAfLoadAttributeDefaults(EndpointId endpoint, bool writeTokens)
         if (endpoint != EMBER_BROADCAST_ENDPOINT)
         {
             ep = emberAfIndexFromEndpoint(endpoint);
-            if (ep == 0xFF)
+            if (ep == 0xFFFF)
             {
                 return;
             }

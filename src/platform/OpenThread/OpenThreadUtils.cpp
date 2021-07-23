@@ -42,7 +42,7 @@ namespace Internal {
  */
 CHIP_ERROR MapOpenThreadError(otError otErr)
 {
-    return (otErr == OT_ERROR_NONE) ? CHIP_NO_ERROR : CHIP_CONFIG_OPENTHREAD_ERROR_MIN + (CHIP_ERROR) otErr;
+    return (otErr == OT_ERROR_NONE) ? CHIP_NO_ERROR : CHIP_CONFIG_OPENTHREAD_ERROR_MIN + static_cast<CHIP_ERROR>(otErr);
 }
 
 /**
@@ -57,7 +57,7 @@ CHIP_ERROR MapOpenThreadError(otError otErr)
  * @return false                    If the supplied error was not an OpenThread error.
  *
  */
-bool FormatOpenThreadError(char * buf, uint16_t bufSize, int32_t err)
+bool FormatOpenThreadError(char * buf, uint16_t bufSize, CHIP_ERROR err)
 {
     if (err < CHIP_CONFIG_OPENTHREAD_ERROR_MIN || err > CHIP_CONFIG_OPENTHREAD_ERROR_MAX)
     {
@@ -100,7 +100,7 @@ void LogOpenThreadStateChange(otInstance * otInst, uint32_t flags)
 
     static char strBuf[64];
 
-    ChipLogDetail(DeviceLayer, "OpenThread State Changed (Flags: 0x%08x)", flags);
+    ChipLogDetail(DeviceLayer, "OpenThread State Changed (Flags: 0x%08" PRIx32 ")", flags);
     if ((flags & OT_CHANGED_THREAD_ROLE) != 0)
     {
         ChipLogDetail(DeviceLayer, "   Device Role: %s", OpenThreadRoleToStr(otThreadGetDeviceRole(otInst)));
