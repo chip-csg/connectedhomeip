@@ -957,7 +957,7 @@ def zcl_read_attribute(
         attribute: str,
         node_id: int,
         endpoint_id: Optional[int] = 0,
-        group_id: Optional[int] = 0):
+        group_id: Optional[int] = 0) -> Dict[str, Any]: 
     """Generic RPC call to read ZCL cluster attributes.
     zclread command format: zclread <Cluster> <Attribute> <NodeId>
         <EndpointId> <GroupId> [arguments]
