@@ -1138,6 +1138,7 @@ def start_rpc_server():
         server.register_function(ip_connect)
         server.register_function(zcl_command)
         server.register_function(zcl_add_network)
+        server.register_function(zcl_read_attribute)
         server.register_function(zcl_enable_network)
         server.register_function(resolve)
         server.register_function(qr_code_parse)
