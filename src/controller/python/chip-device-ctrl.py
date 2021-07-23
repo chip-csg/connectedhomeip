@@ -976,20 +976,25 @@ def zcl_read_attribute(
         Dict[str, Any]: Dictionary of RPC response for ZCL read.
     """
     try:
-        response = device_manager.devCtrl.ZCLReadAttribute(
-                cluster=cluster,
-                attribute=attribute,
-                nodeid=node_id,
-                endpoint=endpoint_id,
-                groupid=group_id,
-                blocking=True)
-        if response.status:
-            return __get_response_dict(status = StatusCodeEnum.FAILED)
-        if response:
-            return __get_response_dict(status = StatusCodeEnum.SUCCESS,
-                    result = str(response.value))
+        all_attributes = device_manager.devCtrl.ZCLAttributeList()
+        #attribute_arg = all_attributes.get(cluster).get(attribute, None)
+        if attribute not in all_attributes:
+            raise exceptions.UnknownAttribute(cluster, attribute)
         else:
-            return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+            response = device_manager.devCtrl.ZCLReadAttribute(
+                    cluster=cluster,
+                    attribute=attribute,
+                    nodeid=node_id,
+                    endpoint=endpoint_id,
+                    groupid=group_id,
+                    blocking=True)
+            if response.status:
+                return __get_response_dict(status = StatusCodeEnum.FAILED)
+            if response:
+                return __get_response_dict(status = StatusCodeEnum.SUCCESS,
+                        result = str(response.value))
+            else:
+                return __get_response_dict(status = StatusCodeEnum.SUCCESS)
     except Exception as e:
         return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
