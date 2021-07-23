@@ -973,7 +973,8 @@ def zcl_read_attribute(
         exceptions.UnknownCommand: when incorrect cluster and/or command passed.
     
     Returns:
-        Dict[str, Any]: Dictionary of RPC response for ZCL read.
+        Dict[str, Any]: Dictionary of RPC response for ZCL read containing
+        attribute value in result key.
     """
     try:
         response = device_manager.devCtrl.ZCLReadAttribute(
