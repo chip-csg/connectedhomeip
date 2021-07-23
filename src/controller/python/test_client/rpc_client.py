@@ -160,7 +160,7 @@ async def main():
         print("Starting Attribute Read")
         zcl_read_attributes = server_1.zcl_read_attribute(
                 "Basic", "ProductID", node_id, 0, 0)
-        print(f"zcl_read_attributes: {zcl_read_attributes}")
+        print(f"zcl_read_attributes_PID: {zcl_read_attributes}")
         zcl_read_attributes_VID = server_1.zcl_read_attribute(
                 "Basic", "VendorID", node_id, 0, 0)
         print(f"zcl_read_attributes_VID: {zcl_read_attributes_VID}")

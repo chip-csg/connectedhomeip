@@ -831,8 +831,8 @@ def zcl_read_attribute(
         cluster: Name of cluster.
         attribute: cluster attribute for which value is to be read.
         node_id: node_id assigned to the DUT.
-        endpoint_id: Optional, endpoint id.
-        group_ip: Optional, group id.
+        endpoint_id: endpoint id.
+        group_ip: group id.
 
     Raises:
         exceptions.UnknownCommand: when incorrect cluster and/or command passed.
@@ -841,27 +841,22 @@ def zcl_read_attribute(
         Dict[str, Any]: Dictionary of RPC response for ZCL read.
     """
     try:
-        all_commands = device_manager.devCtrl.ZCLCommandList()
-        all_attrs = device_manager.devCtrl.ZCLAttributeList()
-        if cluster not in all_commands or attribute not in all_attrs:
-            raise exceptions.UnknownCluster(cluster)
+        response = device_manager.devCtrl.ZCLReadAttribute(
+                cluster=cluster,
+                attribute=attribute,
+                nodeid=node_id,
+                endpoint=endpoint_id,
+                groupid=group_id,
+                blocking=True)
+        if response.status:
+            return __get_response_dict(status = StatusCodeEnum.FAILED)
+        if response:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS,
+                    result = str(response.value))
         else:
-            response = device_manager.devCtrl.ZCLReadAttribute(
-                    cluster=cluster,
-                    attribute=attribute,
-                    nodeid=node_id,
-                    endpoint=endpoint_id,
-                    groupid=group_id,
-                    blocking=True)
-            if response.status:
-                return __get_response_dict(status = StatusCodeEnum.FAILED)
-            if response:
-                return __get_response_dict(status = StatusCodeEnum.SUCCESS,
-                        result = str(response.value))
-            else:
-                return __get_response_dict(status = StatusCodeEnum.SUCCESS)
-        except Exception as e:
-            return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
 
 def __format_zcl_arguments_from_dict(optional_args: dict, command: dict) -> Dict[str, Any]:
     formatted_command_args = {}
