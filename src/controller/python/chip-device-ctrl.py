@@ -962,6 +962,49 @@ def __format_zcl_arguments_from_dict(optional_args: dict, command: dict) -> Dict
         elif valueType == 'bytes':
             formatted_command_args[key] = ParseEncodedString(value)
     return formatted_command_args
+
+
+def zcl_read_attribute(
+        cluster: str,
+        attribute: str,
+        node_id: int,
+        endpoint_id: Optional[int] = 0,
+        group_id: Optional[int] = 0) -> Dict[str, Any]:
+    """Generic RPC call to read ZCL cluster attributes.
+    zclread command format: zclread <Cluster> <Attribute> <NodeId>
+        <EndpointId> <GroupId> [arguments]
+
+    Args:
+        cluster: Name of cluster.
+        attribute: cluster attribute for which value is to be read.
+        node_id: node_id assigned to the DUT.
+        endpoint_id: endpoint id.
+        group_ip: group id.
+
+    Raises:
+        exceptions.UnknownCommand: when incorrect cluster and/or command passed.
+
+    Returns:
+        Dict[str, Any]: Dictionary of RPC response for ZCL read containing
+        attribute value in result key.
+    """
+    try:
+        response = device_manager.devCtrl.ZCLReadAttribute(
+                cluster=cluster,
+                attribute=attribute,
+                nodeid=node_id,
+                endpoint=endpoint_id,
+                groupid=group_id,
+                blocking=True)
+        if response.status:
+            return __get_response_dict(status = StatusCodeEnum.FAILED)
+        if response:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS,
+                    result = str(response.value))
+        else:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
     
 
 def zcl_add_network(node_id: int, ssid: str, password: str, endpoint_id: Optional[int] = 1, group_id: Optional[int] = 0, breadcrumb: Optional[int] = 0, timeoutMs: Optional[int] = 1000) -> Dict[str, Any] :
@@ -1095,6 +1138,7 @@ def start_rpc_server():
         server.register_function(ip_connect)
         server.register_function(zcl_command)
         server.register_function(zcl_add_network)
+        server.register_function(zcl_read_attribute)
         server.register_function(zcl_enable_network)
         server.register_function(resolve)
         server.register_function(qr_code_parse)
