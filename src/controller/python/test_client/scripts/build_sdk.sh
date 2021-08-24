@@ -3,6 +3,6 @@
 
 source ./scripts/activate_environment.sh
 
-gn gen $CHIP_SDK_ROOT/out/debug
+gn gen --args='chip_mdns="platform"' $CHIP_SDK_ROOT/out/debug
 ninja -C $CHIP_SDK_ROOT/out/debug
 cp $CHIP_SDK_ROOT/out/debug/controller/python/*.whl $TEST_CLIENT_ROOT/
