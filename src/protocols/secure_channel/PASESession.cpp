@@ -548,7 +548,7 @@ CHIP_ERROR PASESession::SendMsg1()
 
 #if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
         pake_1_message_map.insert(std::make_pair(PAKE_1_Pa_key, stringForDataBuffer(&X[0], (uint16_t)X_len)));
-        pake_1_message_map.insert(std::make_pair(PAKE_1_key_id_key, std::to_string(mConnectionState.GetLocalKeyID())));
+        pake_1_message_map.insert(std::make_pair(PAKE_1_key_id_key, std::to_string(GetLocalKeyId())));
         mPASETrace.insert (std::make_pair(PAKE_1_key, pake_1_message_map));
 #endif //CSG_TRACE_END
     return CHIP_NO_ERROR;
