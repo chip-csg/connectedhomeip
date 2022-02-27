@@ -32,6 +32,8 @@
 #include <support/CHIPMem.h>
 #include <support/CodeUtils.h>
 #include <support/UnitTestRegistration.h>
+#include <support/UnitTestUtils.h>
+#include <transport/raw/tests/NetworkTestHelpers.h>
 
 using namespace chip;
 using namespace chip::Inet;
@@ -41,70 +43,34 @@ using namespace chip::Protocols;
 
 using TestContext = chip::Test::MessagingContext;
 
-static void test_os_sleep_ms(uint64_t millisecs)
+class PASETestLoopbackTransport : public Test::LoopbackTransport
 {
-    struct timespec sleep_time;
-    uint64_t s = millisecs / 1000;
-
-    millisecs -= s * 1000;
-    sleep_time.tv_sec  = static_cast<time_t>(s);
-    sleep_time.tv_nsec = static_cast<long>(millisecs * 1000000);
-
-    nanosleep(&sleep_time, nullptr);
-}
-
-class PASETestLoopbackTransport : public Transport::Base
-{
-public:
-    CHIP_ERROR SendMessage(const PeerAddress & address, System::PacketBufferHandle && msgBuf) override
+    void MessageDropped() override
     {
-        ReturnErrorOnFailure(mMessageSendError);
-        mSentMessageCount++;
-
-        if (mNumMessagesToDrop == 0)
+        // Trigger a retransmit.
+        if (mContext != nullptr)
         {
-            // The msgBuf is also being used for retransmission. So we cannot hand over the same buffer
-            // to the receive handler. The receive handler modifies the buffer for extracting headers etc.
-            // So the buffer passed to receive handler cannot be used for retransmission afterwards.
-            // Let's clone the message, and provide cloned message to the receive handler.
-            System::PacketBufferHandle receivedMessage = msgBuf.CloneData();
-            HandleMessageReceived(address, std::move(receivedMessage));
+            chip::test_utils::SleepMillis(65);
+            ReliableMessageMgr * rm = mContext->GetExchangeManager().GetReliableMessageMgr();
+            ReliableMessageMgr::Timeout(&mContext->GetSystemLayer(), rm);
         }
-        else
-        {
-            mNumMessagesToDrop--;
-            mDroppedMessageCount++;
-            if (mContext != nullptr)
-            {
-                test_os_sleep_ms(65);
-                ReliableMessageMgr * rm = mContext->GetExchangeManager().GetReliableMessageMgr();
-                ReliableMessageMgr::Timeout(&mContext->GetSystemLayer(), rm, CHIP_SYSTEM_NO_ERROR);
-            }
-        }
-
-        return CHIP_NO_ERROR;
     }
 
+public:
     bool CanSendToPeer(const PeerAddress & address) override { return true; }
 
     void Reset()
     {
-        mNumMessagesToDrop   = 0;
-        mDroppedMessageCount = 0;
-        mSentMessageCount    = 0;
-        mMessageSendError    = CHIP_NO_ERROR;
-        mContext             = nullptr;
+        Test::LoopbackTransport::Reset();
+        mContext = nullptr;
     }
 
-    uint32_t mNumMessagesToDrop   = 0;
-    uint32_t mDroppedMessageCount = 0;
-    uint32_t mSentMessageCount    = 0;
-    CHIP_ERROR mMessageSendError  = CHIP_NO_ERROR;
-    TestContext * mContext        = nullptr;
+    TestContext * mContext = nullptr;
 };
 
 TransportMgrBase gTransportMgr;
 PASETestLoopbackTransport gLoopback;
+chip::Test::IOContext gIOContext;
 
 class TestSecurePairingDelegate : public SessionEstablishmentDelegate
 {
@@ -120,10 +86,10 @@ public:
 class MockAppDelegate : public ExchangeDelegate
 {
 public:
-    void OnMessageReceived(ExchangeContext * ec, const PacketHeader & packetHeader, const PayloadHeader & payloadHeader,
-                           System::PacketBufferHandle && buffer) override
+    CHIP_ERROR OnMessageReceived(ExchangeContext * ec, const PacketHeader & packetHeader, const PayloadHeader & payloadHeader,
+                                 System::PacketBufferHandle && buffer) override
     {
-        ec->Close();
+        return CHIP_NO_ERROR;
     }
 
     void OnResponseTimeout(ExchangeContext * ec) override {}
@@ -137,10 +103,12 @@ void SecurePairingWaitTest(nlTestSuite * inSuite, void * inContext)
 
     gLoopback.Reset();
 
-    NL_TEST_ASSERT(inSuite, pairing.WaitForPairing(1234, 500, nullptr, 0, 0, &delegate) == CHIP_ERROR_INVALID_ARGUMENT);
+    NL_TEST_ASSERT(inSuite, pairing.WaitForPairing(1234, 500, ByteSpan(nullptr, 0), 0, &delegate) == CHIP_ERROR_INVALID_ARGUMENT);
     NL_TEST_ASSERT(inSuite,
-                   pairing.WaitForPairing(1234, 500, (const uint8_t *) "saltSalt", 8, 0, nullptr) == CHIP_ERROR_INVALID_ARGUMENT);
-    NL_TEST_ASSERT(inSuite, pairing.WaitForPairing(1234, 500, (const uint8_t *) "saltSalt", 8, 0, &delegate) == CHIP_NO_ERROR);
+                   pairing.WaitForPairing(1234, 500, ByteSpan((const uint8_t *) "saltSalt", 8), 0, nullptr) ==
+                       CHIP_ERROR_INVALID_ARGUMENT);
+    NL_TEST_ASSERT(inSuite,
+                   pairing.WaitForPairing(1234, 500, ByteSpan((const uint8_t *) "saltSalt", 8), 0, &delegate) == CHIP_NO_ERROR);
 }
 
 void SecurePairingStartTest(nlTestSuite * inSuite, void * inContext)
@@ -216,7 +184,7 @@ void SecurePairingHandshakeTestCommon(nlTestSuite * inSuite, void * inContext, P
                        Protocols::SecureChannel::MsgType::PBKDFParamRequest, &pairingAccessory) == CHIP_NO_ERROR);
 
     NL_TEST_ASSERT(inSuite,
-                   pairingAccessory.WaitForPairing(1234, 500, (const uint8_t *) "saltSALT", 8, 0, &delegateAccessory) ==
+                   pairingAccessory.WaitForPairing(1234, 500, ByteSpan((const uint8_t *) "saltSALT", 8), 0, &delegateAccessory) ==
                        CHIP_NO_ERROR);
     NL_TEST_ASSERT(inSuite,
                    pairingCommissioner.Pair(Transport::PeerAddress(Transport::Type::kBle), 1234, 0, contextCommissioner,
@@ -287,7 +255,7 @@ void SecurePairingFailedHandshake(nlTestSuite * inSuite, void * inContext)
                        Protocols::SecureChannel::MsgType::PBKDFParamRequest, &pairingAccessory) == CHIP_NO_ERROR);
 
     NL_TEST_ASSERT(inSuite,
-                   pairingAccessory.WaitForPairing(1234, 500, (const uint8_t *) "saltSALT", 8, 0, &delegateAccessory) ==
+                   pairingAccessory.WaitForPairing(1234, 500, ByteSpan((const uint8_t *) "saltSALT", 8), 0, &delegateAccessory) ==
                        CHIP_NO_ERROR);
     NL_TEST_ASSERT(inSuite,
                    pairingCommissioner.Pair(Transport::PeerAddress(Transport::Type::kBle), 4321, 0, contextCommissioner,
@@ -384,7 +352,7 @@ int TestSecurePairing_Teardown(void * inContext);
 // clang-format off
 static nlTestSuite sSuite =
 {
-    "Test-CHIP-SecurePairing",
+    "Test-CHIP-SecurePairing-PASE",
     &sTests[0],
     TestSecurePairing_Setup,
     TestSecurePairing_Teardown,
@@ -400,23 +368,19 @@ static TestContext sContext;
  */
 int TestSecurePairing_Setup(void * inContext)
 {
-    TestContext & ctx = *reinterpret_cast<TestContext *>(inContext);
+    // Initialize System memory and resources
+    VerifyOrReturnError(chip::Platform::MemoryInit() == CHIP_NO_ERROR, FAILURE);
+    VerifyOrReturnError(gIOContext.Init(&sSuite) == CHIP_NO_ERROR, FAILURE);
+    VerifyOrReturnError(gTransportMgr.Init(&gLoopback) == CHIP_NO_ERROR, FAILURE);
 
-    CHIP_ERROR err = chip::Platform::MemoryInit();
-    if (err != CHIP_NO_ERROR)
-        return FAILURE;
+    auto & ctx = *static_cast<TestContext *>(inContext);
+    VerifyOrReturnError(ctx.Init(&sSuite, &gTransportMgr, &gIOContext) == CHIP_NO_ERROR, FAILURE);
 
-    gTransportMgr.Init(&gLoopback);
-
-    err = ctx.Init(&sSuite, &gTransportMgr);
-    if (err != CHIP_NO_ERROR)
-        return FAILURE;
-
-    ctx.SetSourceNodeId(kAnyNodeId);
-    ctx.SetDestinationNodeId(kAnyNodeId);
+    ctx.SetSourceNodeId(kPlaceholderNodeId);
+    ctx.SetDestinationNodeId(kPlaceholderNodeId);
     ctx.SetLocalKeyId(0);
     ctx.SetPeerKeyId(0);
-    ctx.SetAdminId(kUndefinedAdminId);
+    ctx.SetFabricIndex(kUndefinedFabricIndex);
 
     gTransportMgr.SetSecureSessionMgr(&ctx.GetSecureSessionManager());
 
@@ -429,6 +393,7 @@ int TestSecurePairing_Setup(void * inContext)
 int TestSecurePairing_Teardown(void * inContext)
 {
     CHIP_ERROR err = reinterpret_cast<TestContext *>(inContext)->Shutdown();
+    gIOContext.Shutdown();
     chip::Platform::MemoryShutdown();
     return (err == CHIP_NO_ERROR) ? SUCCESS : FAILURE;
 }

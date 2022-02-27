@@ -26,6 +26,7 @@
 #include <controller/CHIPDeviceController.h>
 #include <controller/ExampleOperationalCredentialsIssuer.h>
 #include <platform/internal/DeviceNetworkInfo.h>
+#include <support/TimeUtils.h>
 
 /**
  * This class contains all relevant information for the JNI view of CHIPDeviceController
@@ -35,35 +36,38 @@
  */
 class AndroidDeviceControllerWrapper : public chip::Controller::DevicePairingDelegate,
                                        public chip::Controller::DeviceStatusDelegate,
+                                       public chip::Controller::OperationalCredentialsDelegate,
                                        public chip::PersistentStorageDelegate
 {
 public:
     ~AndroidDeviceControllerWrapper();
 
-    // Use StackUnlockGuard to temporarily unlock the CHIP BLE stack, e.g. when calling application
-    // or Android BLE code as a result of a BLE event.
-    struct StackUnlockGuard
-    {
-    public:
-        StackUnlockGuard(pthread_mutex_t * mutex) : mMutex(mutex) { pthread_mutex_unlock(mMutex); }
-        ~StackUnlockGuard() { pthread_mutex_lock(mMutex); }
-
-    private:
-        pthread_mutex_t * mMutex;
-    };
-
     chip::Controller::DeviceCommissioner * Controller() { return mController.get(); }
-    chip::Controller::ExampleOperationalCredentialsIssuer & OpCredsIssuer() { return mOpCredsIssuer; }
     void SetJavaObjectRef(JavaVM * vm, jobject obj);
     jobject JavaObjectRef() { return mJavaObjectRef; }
     jlong ToJNIHandle();
 
     void CallJavaMethod(const char * methodName, jint argument);
+    CHIP_ERROR InitializeOperationalCredentialsIssuer();
 
     // DevicePairingDelegate implementation
     void OnStatusUpdate(chip::Controller::DevicePairingDelegate::Status status) override;
     void OnPairingComplete(CHIP_ERROR error) override;
     void OnPairingDeleted(CHIP_ERROR error) override;
+    void OnCommissioningComplete(chip::NodeId deviceId, CHIP_ERROR error) override;
+
+    // OperationalCredentialsDelegate implementation
+    CHIP_ERROR GenerateNOCChain(const chip::ByteSpan & csrElements, const chip::ByteSpan & attestationSignature,
+                                const chip::ByteSpan & DAC, const chip::ByteSpan & PAI, const chip::ByteSpan & PAA,
+                                chip::Callback::Callback<chip::Controller::OnNOCChainGeneration> * onCompletion) override;
+
+    void SetNodeIdForNextNOCRequest(chip::NodeId nodeId) override
+    {
+        mNextRequestedNodeId = nodeId;
+        mNodeIdRequested     = true;
+    }
+
+    void SetFabricIdForNextNOCRequest(chip::FabricId fabricId) override { mNextFabricId = fabricId; }
 
     // DeviceStatusDelegate implementation
     void OnMessage(chip::System::PacketBufferHandle && msg) override;
@@ -83,8 +87,17 @@ public:
                                                         chip::NodeId nodeId, chip::System::Layer * systemLayer,
                                                         chip::Inet::InetLayer * inetLayer, CHIP_ERROR * errInfoOnFailure);
 
+    CHIP_ERROR GenerateNOCChainAfterValidation(chip::NodeId nodeId, chip::FabricId fabricId,
+                                               const chip::Crypto::P256PublicKey & ephemeralKey, chip::MutableByteSpan & rcac,
+                                               chip::MutableByteSpan & icac, chip::MutableByteSpan & noc);
+
 private:
     using ChipDeviceControllerPtr = std::unique_ptr<chip::Controller::DeviceCommissioner>;
+    chip::Crypto::P256Keypair mIssuer;
+    bool mInitialized  = false;
+    uint32_t mIssuerId = 0;
+    uint32_t mNow      = 0;
+    uint32_t mValidity = 10 * chip::kSecondsPerStandardYear;
 
     ChipDeviceControllerPtr mController;
     chip::Controller::ExampleOperationalCredentialsIssuer mOpCredsIssuer;
@@ -94,9 +107,17 @@ private:
     JavaVM * mJavaVM       = nullptr;
     jobject mJavaObjectRef = nullptr;
 
+    chip::NodeId mNextAvailableNodeId = 1;
+
+    chip::NodeId mNextRequestedNodeId = 1;
+    chip::FabricId mNextFabricId      = 0;
+    bool mNodeIdRequested             = false;
+
     AndroidDeviceControllerWrapper(ChipDeviceControllerPtr controller, pthread_mutex_t * stackLock) :
         mController(std::move(controller)), mStackLock(stackLock)
-    {}
+    {
+        chip::CalendarToChipEpochTime(2021, 06, 10, 0, 0, 0, mNow);
+    }
 };
 
 inline jlong AndroidDeviceControllerWrapper::ToJNIHandle()

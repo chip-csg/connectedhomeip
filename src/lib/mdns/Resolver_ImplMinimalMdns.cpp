@@ -27,7 +27,7 @@
 #include <mdns/minimal/QueryBuilder.h>
 #include <mdns/minimal/RecordData.h>
 #include <mdns/minimal/core/FlatAllocatedQName.h>
-
+#include <support/CHIPMemString.h>
 #include <support/logging/CHIPLogging.h>
 
 // MDNS servers will receive all broadcast packets over the network.
@@ -39,39 +39,24 @@ namespace chip {
 namespace Mdns {
 namespace {
 
-enum class DiscoveryType
-{
-    kUnknown,
-    kOperational,
-    kCommissionableNode,
-    kCommissionerNode
-};
-
-class TxtRecordDelegateImpl : public mdns::Minimal::TxtRecordDelegate
-{
-public:
-    TxtRecordDelegateImpl(DiscoveredNodeData * nodeData) : mNodeData(nodeData) {}
-    void OnRecord(const mdns::Minimal::BytesRange & name, const mdns::Minimal::BytesRange & value);
-
-private:
-    DiscoveredNodeData * mNodeData;
-};
-
 const ByteSpan GetSpan(const mdns::Minimal::BytesRange & range)
 {
     return ByteSpan(range.Start(), range.Size());
 }
 
-void TxtRecordDelegateImpl::OnRecord(const mdns::Minimal::BytesRange & name, const mdns::Minimal::BytesRange & value)
+template <class NodeData>
+class TxtRecordDelegateImpl : public mdns::Minimal::TxtRecordDelegate
 {
-    if (mNodeData == nullptr)
+public:
+    explicit TxtRecordDelegateImpl(NodeData & nodeData) : mNodeData(nodeData) {}
+    void OnRecord(const mdns::Minimal::BytesRange & name, const mdns::Minimal::BytesRange & value) override
     {
-        return;
+        FillNodeDataFromTxt(GetSpan(name), GetSpan(value), mNodeData);
     }
-    ByteSpan key = GetSpan(name);
-    ByteSpan val = GetSpan(value);
-    FillNodeDataFromTxt(key, val, mNodeData);
-}
+
+private:
+    NodeData & mNodeData;
+};
 
 constexpr size_t kMdnsMaxPacketSize = 1024;
 constexpr uint16_t kMdnsPort        = 5353;
@@ -137,6 +122,12 @@ void PacketDataReporter::OnHeader(ConstHeaderRef & header)
 
 void PacketDataReporter::OnOperationalSrvRecord(SerializedQNameIterator name, const SrvRecord & srv)
 {
+    mdns::Minimal::SerializedQNameIterator it = srv.GetName();
+    if (it.Next())
+    {
+        Platform::CopyString(mNodeData.mHostName, it.Value());
+    }
+
     if (!name.Next())
     {
 #ifdef MINMDNS_RESOLVER_OVERLY_VERBOSE
@@ -161,11 +152,14 @@ void PacketDataReporter::OnCommissionableNodeSrvRecord(SerializedQNameIterator n
 {
     // Host name is the first part of the qname
     mdns::Minimal::SerializedQNameIterator it = srv.GetName();
-    if (!it.Next())
+    if (it.Next())
     {
-        return;
+        Platform::CopyString(mDiscoveredNodeData.hostName, it.Value());
     }
-    strncpy(mDiscoveredNodeData.hostName, it.Value(), sizeof(DiscoveredNodeData::hostName));
+    if (name.Next())
+    {
+        strncpy(mDiscoveredNodeData.instanceName, name.Value(), sizeof(DiscoveredNodeData::instanceName));
+    }
 }
 
 void PacketDataReporter::OnOperationalIPAddress(const chip::Inet::IPAddress & addr)
@@ -225,24 +219,30 @@ void PacketDataReporter::OnResource(ResourceType type, const ResourceData & data
         else if (mDiscoveryType == DiscoveryType::kOperational)
         {
             // Ensure this is our record.
+            // TODO: Fix this comparison which is too loose.
             if (HasQNamePart(data.GetName(), kOperationalServiceName))
             {
                 OnOperationalSrvRecord(data.GetName(), srv);
             }
-            else
-            {
-                mValid = false;
-            }
         }
         else if (mDiscoveryType == DiscoveryType::kCommissionableNode || mDiscoveryType == DiscoveryType::kCommissionerNode)
         {
+            // TODO: Fix this comparison which is too loose.
             if (HasQNamePart(data.GetName(), kCommissionableServiceName) || HasQNamePart(data.GetName(), kCommissionerServiceName))
             {
                 OnCommissionableNodeSrvRecord(data.GetName(), srv);
             }
-            else
+        }
+        break;
+    }
+    case QType::PTR: {
+        if (mDiscoveryType == DiscoveryType::kCommissionableNode)
+        {
+            SerializedQNameIterator qname;
+            ParsePtrRecord(data.GetData(), mPacketRange, &qname);
+            if (qname.Next())
             {
-                mValid = false;
+                strncpy(mDiscoveredNodeData.instanceName, qname.Value(), sizeof(DiscoveredNodeData::instanceName));
             }
         }
         break;
@@ -250,7 +250,12 @@ void PacketDataReporter::OnResource(ResourceType type, const ResourceData & data
     case QType::TXT:
         if (mDiscoveryType == DiscoveryType::kCommissionableNode || mDiscoveryType == DiscoveryType::kCommissionerNode)
         {
-            TxtRecordDelegateImpl textRecordDelegate(&mDiscoveredNodeData);
+            TxtRecordDelegateImpl<DiscoveredNodeData> textRecordDelegate(mDiscoveredNodeData);
+            ParseTxtRecord(data.GetData(), &textRecordDelegate);
+        }
+        else if (mDiscoveryType == DiscoveryType::kOperational)
+        {
+            TxtRecordDelegateImpl<ResolvedNodeData> textRecordDelegate(mNodeData);
             ParseTxtRecord(data.GetData(), &textRecordDelegate);
         }
         break;
@@ -308,6 +313,7 @@ void PacketDataReporter::OnComplete()
     }
     else if (mDiscoveryType == DiscoveryType::kOperational && mHasIP && mHasNodePort)
     {
+        mNodeData.LogNodeIdResolved();
         mDelegate->OnNodeIdResolved(mNodeData);
     }
 }
@@ -386,7 +392,6 @@ CHIP_ERROR MinMdnsResolver::SetResolverDelegate(ResolverDelegate * delegate)
 
 CHIP_ERROR MinMdnsResolver::SendQuery(mdns::Minimal::FullQName qname, mdns::Minimal::QType type)
 {
-
     System::PacketBufferHandle buffer = System::PacketBufferHandle::New(kMdnsMaxPacketSize);
     ReturnErrorCodeIf(buffer.IsNull(), CHIP_ERROR_NO_MEMORY);
 
@@ -431,6 +436,10 @@ CHIP_ERROR MinMdnsResolver::BrowseNodes(DiscoveryType type, DiscoveryFilter filt
         if (filter.type == DiscoveryFilterType::kNone)
         {
             qname = CheckAndAllocateQName(kCommissionableServiceName, kCommissionProtocol, kLocalDomain);
+        }
+        else if (filter.type == DiscoveryFilterType::kInstanceName)
+        {
+            qname = CheckAndAllocateQName(filter.instanceName, kCommissionableServiceName, kCommissionProtocol, kLocalDomain);
         }
         else
         {

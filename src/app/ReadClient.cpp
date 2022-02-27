@@ -22,22 +22,25 @@
  *
  */
 
+#include <app/AppBuildConfig.h>
 #include <app/InteractionModelEngine.h>
 #include <app/ReadClient.h>
 
 namespace chip {
 namespace app {
 
-CHIP_ERROR ReadClient::Init(Messaging::ExchangeManager * apExchangeMgr, InteractionModelDelegate * apDelegate)
+CHIP_ERROR ReadClient::Init(Messaging::ExchangeManager * apExchangeMgr, InteractionModelDelegate * apDelegate,
+                            uint64_t aAppIdentifier)
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
     // Error if already initialized.
     VerifyOrExit(apExchangeMgr != nullptr, err = CHIP_ERROR_INCORRECT_STATE);
     VerifyOrExit(mpExchangeMgr == nullptr, err = CHIP_ERROR_INCORRECT_STATE);
 
-    mpExchangeMgr = apExchangeMgr;
-    mpDelegate    = apDelegate;
-    mState        = ClientState::Initialized;
+    mpExchangeMgr  = apExchangeMgr;
+    mpDelegate     = apDelegate;
+    mState         = ClientState::Initialized;
+    mAppIdentifier = aAppIdentifier;
 
     AbortExistingExchangeContext();
 
@@ -49,7 +52,13 @@ exit:
 void ReadClient::Shutdown()
 {
     AbortExistingExchangeContext();
+    ShutdownInternal();
+}
+
+void ReadClient::ShutdownInternal()
+{
     mpExchangeMgr = nullptr;
+    mpExchangeCtx = nullptr;
     mpDelegate    = nullptr;
     MoveToState(ClientState::Uninitialized);
 }
@@ -77,9 +86,10 @@ void ReadClient::MoveToState(const ClientState aTargetState)
                   GetStateStr());
 }
 
-CHIP_ERROR ReadClient::SendReadRequest(NodeId aNodeId, Transport::AdminId aAdminId, EventPathParams * apEventPathParamsList,
-                                       size_t aEventPathParamsListSize, AttributePathParams * apAttributePathParamsList,
-                                       size_t aAttributePathParamsListSize, EventNumber aEventNumber)
+CHIP_ERROR ReadClient::SendReadRequest(NodeId aNodeId, FabricIndex aFabricIndex, SessionHandle * apSecureSession,
+                                       EventPathParams * apEventPathParamsList, size_t aEventPathParamsListSize,
+                                       AttributePathParams * apAttributePathParamsList, size_t aAttributePathParamsListSize,
+                                       EventNumber aEventNumber, uint32_t timeout)
 {
     // TODO: SendRequest parameter is too long, need to have the structure to represent it
     CHIP_ERROR err = CHIP_NO_ERROR;
@@ -107,27 +117,8 @@ CHIP_ERROR ReadClient::SendReadRequest(NodeId aNodeId, Transport::AdminId aAdmin
 
         if (aEventPathParamsListSize != 0 && apEventPathParamsList != nullptr)
         {
-            EventPathList::Builder & eventPathListBuilder = request.CreateEventPathListBuilder();
-            EventPath::Builder eventPathBuilder           = eventPathListBuilder.CreateEventPathBuilder();
-            for (size_t eventIndex = 0; eventIndex < aEventPathParamsListSize; ++eventIndex)
-            {
-                EventPathParams eventPath = apEventPathParamsList[eventIndex];
-                eventPathBuilder.NodeId(eventPath.mNodeId)
-                    .EventId(eventPath.mEventId)
-                    .EndpointId(eventPath.mEndpointId)
-                    .ClusterId(eventPath.mClusterId)
-                    .EndOfEventPath();
-                SuccessOrExit(err = eventPathBuilder.GetError());
-            }
-
-            eventPathListBuilder.EndOfEventPathList();
-            SuccessOrExit(err = eventPathListBuilder.GetError());
-
-            if (aEventNumber != 0)
-            {
-                // EventNumber is optional
-                request.EventNumber(aEventNumber);
-            }
+            err = GenerateEventPathList(request, apEventPathParamsList, aEventPathParamsListSize, aEventNumber);
+            SuccessOrExit(err);
         }
 
         if (aAttributePathParamsListSize != 0 && apAttributePathParamsList != nullptr)
@@ -143,9 +134,16 @@ CHIP_ERROR ReadClient::SendReadRequest(NodeId aNodeId, Transport::AdminId aAdmin
         SuccessOrExit(err);
     }
 
-    mpExchangeCtx = mpExchangeMgr->NewContext({ aNodeId, 0, aAdminId }, this);
+    if (apSecureSession != nullptr)
+    {
+        mpExchangeCtx = mpExchangeMgr->NewContext(*apSecureSession, this);
+    }
+    else
+    {
+        mpExchangeCtx = mpExchangeMgr->NewContext(SessionHandle(aNodeId, 0, 0, aFabricIndex), this);
+    }
     VerifyOrExit(mpExchangeCtx != nullptr, err = CHIP_ERROR_NO_MEMORY);
-    mpExchangeCtx->SetResponseTimeout(kImMessageTimeoutMsec);
+    mpExchangeCtx->SetResponseTimeout(timeout);
 
     err = mpExchangeCtx->SendMessage(Protocols::InteractionModel::MsgType::ReadRequest, std::move(msgBuf),
                                      Messaging::SendFlags(Messaging::SendMessageFlags::kExpectResponse));
@@ -160,6 +158,37 @@ exit:
         AbortExistingExchangeContext();
     }
 
+    return err;
+}
+
+CHIP_ERROR ReadClient::GenerateEventPathList(ReadRequest::Builder & aRequest, EventPathParams * apEventPathParamsList,
+                                             size_t aEventPathParamsListSize, EventNumber & aEventNumber)
+{
+    CHIP_ERROR err                                = CHIP_NO_ERROR;
+    EventPathList::Builder & eventPathListBuilder = aRequest.CreateEventPathListBuilder();
+    for (size_t eventIndex = 0; eventIndex < aEventPathParamsListSize; ++eventIndex)
+    {
+        EventPath::Builder eventPathBuilder = eventPathListBuilder.CreateEventPathBuilder();
+        EventPathParams eventPath           = apEventPathParamsList[eventIndex];
+        eventPathBuilder.NodeId(eventPath.mNodeId)
+            .EventId(eventPath.mEventId)
+            .EndpointId(eventPath.mEndpointId)
+            .ClusterId(eventPath.mClusterId)
+            .EndOfEventPath();
+        SuccessOrExit(err = eventPathBuilder.GetError());
+    }
+
+    eventPathListBuilder.EndOfEventPathList();
+    SuccessOrExit(err = eventPathListBuilder.GetError());
+
+    if (aEventNumber != 0)
+    {
+        // EventNumber is optional
+        aRequest.EventNumber(aEventNumber);
+    }
+
+exit:
+    ChipLogFunctError(err);
     return err;
 }
 
@@ -193,8 +222,8 @@ CHIP_ERROR ReadClient::GenerateAttributePathList(ReadRequest::Builder & aRequest
     return attributePathListBuilder.GetError();
 }
 
-void ReadClient::OnMessageReceived(Messaging::ExchangeContext * apExchangeContext, const PacketHeader & aPacketHeader,
-                                   const PayloadHeader & aPayloadHeader, System::PacketBufferHandle && aPayload)
+CHIP_ERROR ReadClient::OnMessageReceived(Messaging::ExchangeContext * apExchangeContext, const PacketHeader & aPacketHeader,
+                                         const PayloadHeader & aPayloadHeader, System::PacketBufferHandle && aPayload)
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
 
@@ -206,9 +235,6 @@ void ReadClient::OnMessageReceived(Messaging::ExchangeContext * apExchangeContex
 exit:
     ChipLogFunctError(err);
 
-    // Close the exchange cleanly so that the ExchangeManager will send an ack for the message we just received.
-    mpExchangeCtx->Close();
-    mpExchangeCtx = nullptr;
     MoveToState(ClientState::Initialized);
 
     if (mpDelegate != nullptr)
@@ -223,7 +249,10 @@ exit:
         }
     }
 
-    return;
+    // TODO(#7521): Should close it after checking moreChunkedMessages flag is not set.
+    ShutdownInternal();
+
+    return err;
 }
 
 CHIP_ERROR ReadClient::AbortExistingExchangeContext()
@@ -321,12 +350,11 @@ void ReadClient::OnResponseTimeout(Messaging::ExchangeContext * apExchangeContex
 {
     ChipLogProgress(DataManagement, "Time out! failed to receive report data from Exchange: %d",
                     apExchangeContext->GetExchangeId());
-    AbortExistingExchangeContext();
-    MoveToState(ClientState::Initialized);
     if (nullptr != mpDelegate)
     {
         mpDelegate->ReportError(this, CHIP_ERROR_TIMEOUT);
     }
+    ShutdownInternal();
 }
 
 CHIP_ERROR ReadClient::ProcessAttributeDataList(TLV::TLVReader & aAttributeDataListReader)
@@ -338,6 +366,9 @@ CHIP_ERROR ReadClient::ProcessAttributeDataList(TLV::TLVReader & aAttributeDataL
         AttributeDataElement::Parser element;
         AttributePath::Parser attributePathParser;
         ClusterInfo clusterInfo;
+        uint16_t statusU16 = 0;
+        auto status        = Protocols::InteractionModel::ProtocolCode::Success;
+
         TLV::TLVReader reader = aAttributeDataListReader;
         err                   = element.Init(reader);
         SuccessOrExit(err);
@@ -378,9 +409,18 @@ CHIP_ERROR ReadClient::ProcessAttributeDataList(TLV::TLVReader & aAttributeDataL
         SuccessOrExit(err);
 
         err = element.GetData(&dataReader);
-        SuccessOrExit(err);
-        err = WriteSingleClusterData(clusterInfo, dataReader);
-        SuccessOrExit(err);
+        if (err == CHIP_END_OF_TLV)
+        {
+            // The spec requires that one of data or status code must exist, thus failure to read data and status code means we
+            // received malformed data from server.
+            SuccessOrExit(err = element.GetStatus(&statusU16));
+            status = static_cast<Protocols::InteractionModel::ProtocolCode>(statusU16);
+        }
+        else if (err != CHIP_NO_ERROR)
+        {
+            ExitNow();
+        }
+        mpDelegate->OnReportData(this, clusterInfo, &dataReader, status);
     }
 
     if (CHIP_END_OF_TLV == err)

@@ -55,6 +55,22 @@ default settings by pressing a button. However, this mode does not guarantee
 that the device will be able to communicate with the CHIP controller and other
 devices.
 
+### SE051H Secure Element
+
+Deployment of this firmware configuration requires the K32W061 board setups
+using the K32W0/JN5189 module board, SE051 Expansion board and Generic Expansion
+board as shown below:
+
+![SE051H  + K32W061 DK6](../../platform/k32w/doc/images/k32w-se.jpg)
+
+The SE051H Secure Element extension may be used for best in class security and
+offloading some of the Project CHIP cryptographic operations. Depending on your
+hardware configuration, choose one of the options below (building with or
+without Secure Element). NOTE: the SE051H is a derivative of the SE051 product
+family (see http://www.nxp.com/SE051) including dedicated CHIP support in
+addition to the SE051 feature set. See the material provided separately by NXP
+for more details on SE051H.
+
 ### Bluetooth LE Advertising
 
 In this example, to commission the device onto a Project CHIP network, it must
@@ -108,12 +124,12 @@ states are depicted:
 **LED D3** shows the state of the simulated light bulb. When the LED is lit the
 light bulb is on; when not lit, the light bulb is off.
 
-**Button SW2** can be used to reset the device to a default state. Pressing and
-holding Button SW2 for 6 seconds initiates a factory reset. After an initial
-period of 3 seconds, LED2 D2 and D3 will flash in unison to signal the pending
-reset. Holding the button past 6 seconds will cause the device to reset its
-persistent configuration and initiate a reboot. The reset action can be
-cancelled by releasing the button at any point before the 6 second limit.
+**Button SW2** can be used to reset the device to a default state. A short Press
+Button SW2 initiates a factory reset. After an initial period of 3 seconds, LED2
+D2 and D3 will flash in unison to signal the pending reset. After 6 seconds will
+cause the device to reset its persistent configuration and initiate a reboot.
+The reset action can be cancelled by press SW2 button at any point before the 6
+second limit.
 
 **Button SW3** can be used to change the state of the simulated light bulb. This
 can be used to mimic a user manually operating a switch. The button behaves as a
@@ -123,7 +139,7 @@ toggle, swapping the state every time it is pressed.
 a Border Router. Default parameters for a Thread network are hard-coded and are
 being used if this button is pressed.
 
-The remaining two LEDs (D1/D2) and button (SW1) are unused.
+The remaining two LEDs (D1/D4) and button (SW1) are unused.
 
 Directly on the development board, **Button USERINTERFACE** can be used for
 enabling Bluetooth LE advertising for a predefined period of time. Also, pushing
@@ -153,17 +169,21 @@ distribution (the demo-application was compiled on Ubuntu 20.04).
     the one from the image below.
     ![MCUXpresso SDK Download](../../platform/k32w/doc/images/mcux-sdk-download.JPG)
 
--   Start building the application
+-   Start building the application either with Secure Element or without
+    -   with Secure Element
 
 ```
 user@ubuntu:~/Desktop/git/connectedhomeip$ export K32W061_SDK_ROOT=/home/user/Desktop/SDK_2.6.3_K32W061DK6/
 user@ubuntu:~/Desktop/git/connectedhomeip$ ./third_party/k32w_sdk/sdk_fixes/patch_k32w_sdk.sh
 user@ubuntu:~/Desktop/git/connectedhomeip$ source ./scripts/activate.sh
 user@ubuntu:~/Desktop/git/connectedhomeip$ cd examples/lighting-app/k32w/
-user@ubuntu:~/Desktop/git/connectedhomeip/examples/lighting-app/k32w$ gn gen out/debug --args="k32w_sdk_root=\"${K32W061_SDK_ROOT}\" chip_with_OM15082=1 chip_with_ot_cli=0 is_debug=false"
+user@ubuntu:~/Desktop/git/connectedhomeip/examples/lighting-app/k32w$ gn gen out/debug --args="k32w_sdk_root=\"${K32W061_SDK_ROOT}\" chip_with_OM15082=1 chip_with_ot_cli=0 is_debug=false chip_crypto=\"mbedtls\" chip_with_se05x=1"
 user@ubuntu:~/Desktop/git/connectedhomeip/examples/lightin-app/k32w$ ninja -C out/debug
 user@ubuntu:~/Desktop/git/connectedhomeip/examples/lighting-app/k32w$ $K32W061_SDK_ROOT/tools/imagetool/sign_images.sh out/debug/
 ```
+
+    -   without Secure element
+        Exactly the same steps as above but set chip_with_se05x=0 in the gn command
 
 Note that "patch_k32w_sdk.sh" script must be run for patching the K32W061 SDK
 2.6.3.

@@ -42,8 +42,10 @@
 #include <support/CodeUtils.h>
 #include <support/ErrorStr.h>
 #include <support/SafeInt.h>
+#include <support/TypeTraits.h>
 #include <transport/SecureSessionMgr.h>
 
+#include <csg_test_harness/constants.h>
 namespace chip {
 
 using namespace Crypto;
@@ -53,8 +55,7 @@ const char * kSpake2pContext        = "CHIP PAKE V1 Commissioning";
 const char * kSpake2pI2RSessionInfo = "Commissioning I2R Key";
 const char * kSpake2pR2ISessionInfo = "Commissioning R2I Key";
 
-static constexpr uint32_t kSpake2p_Iteration_Count = 100;
-static const char * kSpake2pKeyExchangeSalt        = "SPAKE2P Key Salt";
+const char * kSpake2pKeyExchangeSalt = "SPAKE2P Key Salt";
 
 // Wait at most 30 seconds for the response from the peer.
 // This timeout value assumes the underlying transport is reliable.
@@ -80,7 +81,7 @@ void PASESession::Clear()
     // This function zeroes out and resets the memory used by the object.
     // It's done so that no security related information will be leaked.
     memset(&mPoint[0], 0, sizeof(mPoint));
-    memset(&mPASEVerifier[0][0], 0, sizeof(mPASEVerifier));
+    memset(&mPASEVerifier, 0, sizeof(mPASEVerifier));
     memset(&mKe[0], 0, sizeof(mKe));
     mNextExpectedMsg = Protocols::SecureChannel::MsgType::PASE_Spake2pError;
 
@@ -98,7 +99,7 @@ void PASESession::Clear()
     mKeLen           = sizeof(mKe);
     mPairingComplete = false;
     mComputeVerifier = true;
-    mConnectionState.Reset();
+    PairingSession::Clear();
     CloseExchange();
 }
 
@@ -110,6 +111,13 @@ void PASESession::CloseExchange()
         mExchangeCtxt = nullptr;
     }
 }
+
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+std::map<std::string, std::map<std::string, std::string>> * PASESession::getPASETrace()
+{
+    return &mPASETrace;
+}
+#endif //CSG_TRACE_END
 
 CHIP_ERROR PASESession::Serialize(PASESessionSerialized & output)
 {
@@ -154,8 +162,8 @@ CHIP_ERROR PASESession::ToSerializable(PASESessionSerializable & serializable)
     memset(&serializable, 0, sizeof(serializable));
     serializable.mKeLen           = static_cast<uint16_t>(mKeLen);
     serializable.mPairingComplete = (mPairingComplete) ? 1 : 0;
-    serializable.mLocalKeyId      = mConnectionState.GetLocalKeyID();
-    serializable.mPeerKeyId       = mConnectionState.GetPeerKeyID();
+    serializable.mLocalKeyId      = GetLocalKeyId();
+    serializable.mPeerKeyId       = GetPeerKeyId();
 
     memcpy(serializable.mKe, mKe, mKeLen);
 
@@ -171,8 +179,8 @@ CHIP_ERROR PASESession::FromSerializable(const PASESessionSerializable & seriali
     memset(mKe, 0, sizeof(mKe));
     memcpy(mKe, serializable.mKe, mKeLen);
 
-    mConnectionState.SetLocalKeyID(serializable.mLocalKeyId);
-    mConnectionState.SetPeerKeyID(serializable.mPeerKeyId);
+    SetLocalKeyId(serializable.mLocalKeyId);
+    SetPeerKeyId(serializable.mPeerKeyId);
 
     return CHIP_NO_ERROR;
 }
@@ -184,31 +192,48 @@ CHIP_ERROR PASESession::Init(uint16_t myKeyId, uint32_t setupCode, SessionEstabl
     // Reset any state maintained by PASESession object (in case it's being reused for pairing)
     Clear();
 
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+    /*
+    TODO: Fix memory leak here? 
+    https://github.com/chip-csg/connectedhomeip/issues/32
+    */
+    mPASETrace =  std::map<std::string, std::map<std::string, std::string>>();
+    request_message_map = {};
+    response_message_map = {};
+    pake_1_message_map = {};
+    pake_2_message_map = {};
+    pake_3_message_map = {};
+#endif //CSG_TRACE_END
     ReturnErrorOnFailure(mCommissioningHash.Begin());
-    ReturnErrorOnFailure(mCommissioningHash.AddData(Uint8::from_const_char(kSpake2pContext), strlen(kSpake2pContext)));
+    ReturnErrorOnFailure(mCommissioningHash.AddData(ByteSpan{ Uint8::from_const_char(kSpake2pContext), strlen(kSpake2pContext) }));
 
     mDelegate = delegate;
 
     ChipLogDetail(SecureChannel, "Assigned local session key ID %d", myKeyId);
-    mConnectionState.SetLocalKeyID(myKeyId);
+    SetLocalKeyId(myKeyId);
     mSetupPINCode    = setupCode;
     mComputeVerifier = true;
 
     return CHIP_NO_ERROR;
 }
 
-CHIP_ERROR PASESession::ComputePASEVerifier(uint32_t setUpPINCode, uint32_t pbkdf2IterCount, const uint8_t * salt, size_t saltLen,
+CHIP_ERROR PASESession::ComputePASEVerifier(uint32_t setUpPINCode, uint32_t pbkdf2IterCount, const ByteSpan & salt,
                                             PASEVerifier & verifier)
 {
+    ReturnErrorCodeIf(salt.empty(), CHIP_ERROR_INVALID_ARGUMENT);
+    ReturnErrorCodeIf(salt.data() == nullptr, CHIP_ERROR_INVALID_ARGUMENT);
+    ReturnErrorCodeIf(setUpPINCode >= (1 << kSetupPINCodeFieldLengthInBits), CHIP_ERROR_INVALID_ARGUMENT);
+
     PBKDF2_sha256_crypto mPBKDF;
     uint8_t littleEndianSetupPINCode[sizeof(uint32_t)];
     Encoding::LittleEndian::Put32(littleEndianSetupPINCode, setUpPINCode);
 
-    return mPBKDF.pbkdf2_sha256(littleEndianSetupPINCode, sizeof(littleEndianSetupPINCode), salt, saltLen, pbkdf2IterCount,
-                                sizeof(PASEVerifier), &verifier[0][0]);
+    return mPBKDF.pbkdf2_sha256(littleEndianSetupPINCode, sizeof(littleEndianSetupPINCode), salt.data(), salt.size(),
+                                pbkdf2IterCount, sizeof(PASEVerifier), reinterpret_cast<uint8_t *>(&verifier));
 }
 
-CHIP_ERROR PASESession::GeneratePASEVerifier(PASEVerifier & verifier, bool useRandomPIN, uint32_t & setupPIN)
+CHIP_ERROR PASESession::GeneratePASEVerifier(PASEVerifier & verifier, uint32_t pbkdf2IterCount, const ByteSpan & salt,
+                                             bool useRandomPIN, uint32_t & setupPIN)
 {
     if (useRandomPIN)
     {
@@ -217,50 +242,43 @@ CHIP_ERROR PASESession::GeneratePASEVerifier(PASEVerifier & verifier, bool useRa
         // Use only kSetupPINCodeFieldLengthInBits bits out of the code
         setupPIN &= ((1 << kSetupPINCodeFieldLengthInBits) - 1);
     }
-    else if (setupPIN >= (1 << kSetupPINCodeFieldLengthInBits))
-    {
-        return CHIP_ERROR_INVALID_ARGUMENT;
-    }
 
-    return PASESession::ComputePASEVerifier(setupPIN, kSpake2p_Iteration_Count,
-                                            reinterpret_cast<const unsigned char *>(kSpake2pKeyExchangeSalt),
-                                            strlen(kSpake2pKeyExchangeSalt), verifier);
+    return PASESession::ComputePASEVerifier(setupPIN, pbkdf2IterCount, salt, verifier);
 }
 
-CHIP_ERROR PASESession::SetupSpake2p(uint32_t pbkdf2IterCount, const uint8_t * salt, size_t saltLen)
+CHIP_ERROR PASESession::SetupSpake2p(uint32_t pbkdf2IterCount, const ByteSpan & salt)
 {
-    uint8_t context[32] = {
+    uint8_t context[kSHA256_Hash_Length] = {
         0,
     };
 
     if (mComputeVerifier)
     {
-        VerifyOrReturnError(salt != nullptr, CHIP_ERROR_INVALID_ARGUMENT);
-        VerifyOrReturnError(saltLen > 0, CHIP_ERROR_INVALID_ARGUMENT);
-
-        ReturnErrorOnFailure(PASESession::ComputePASEVerifier(mSetupPINCode, pbkdf2IterCount, salt, saltLen, mPASEVerifier));
+        ReturnErrorOnFailure(PASESession::ComputePASEVerifier(mSetupPINCode, pbkdf2IterCount, salt, mPASEVerifier));
     }
 
-    ReturnErrorOnFailure(mCommissioningHash.Finish(context));
-    ReturnErrorOnFailure(mSpake2p.Init(context, sizeof(context)));
+    MutableByteSpan contextSpan{ context, sizeof(context) };
+
+    ReturnErrorOnFailure(mCommissioningHash.Finish(contextSpan));
+    ReturnErrorOnFailure(mSpake2p.Init(contextSpan.data(), contextSpan.size()));
 
     return CHIP_NO_ERROR;
 }
 
-CHIP_ERROR PASESession::WaitForPairing(uint32_t mySetUpPINCode, uint32_t pbkdf2IterCount, const uint8_t * salt, size_t saltLen,
-                                       uint16_t myKeyId, SessionEstablishmentDelegate * delegate)
+CHIP_ERROR PASESession::WaitForPairing(uint32_t mySetUpPINCode, uint32_t pbkdf2IterCount, const ByteSpan & salt, uint16_t myKeyId,
+                                       SessionEstablishmentDelegate * delegate)
 {
     // Return early on error here, as we have not initalized any state yet
-    ReturnErrorCodeIf(salt == nullptr, CHIP_ERROR_INVALID_ARGUMENT);
-    ReturnErrorCodeIf(saltLen == 0, CHIP_ERROR_INVALID_ARGUMENT);
+    ReturnErrorCodeIf(salt.empty(), CHIP_ERROR_INVALID_ARGUMENT);
+    ReturnErrorCodeIf(salt.data() == nullptr, CHIP_ERROR_INVALID_ARGUMENT);
 
     CHIP_ERROR err = Init(myKeyId, mySetUpPINCode, delegate);
     // From here onwards, let's go to exit on error, as some state might have already
     // been initialized
     SuccessOrExit(err);
 
-    VerifyOrExit(CanCastTo<uint16_t>(saltLen), err = CHIP_ERROR_INVALID_ARGUMENT);
-    mSaltLength = static_cast<uint16_t>(saltLen);
+    VerifyOrExit(CanCastTo<uint16_t>(salt.size()), err = CHIP_ERROR_INVALID_ARGUMENT);
+    mSaltLength = static_cast<uint16_t>(salt.size());
 
     if (mSalt != nullptr)
     {
@@ -271,12 +289,13 @@ CHIP_ERROR PASESession::WaitForPairing(uint32_t mySetUpPINCode, uint32_t pbkdf2I
     mSalt = static_cast<uint8_t *>(chip::Platform::MemoryAlloc(mSaltLength));
     VerifyOrExit(mSalt != nullptr, err = CHIP_ERROR_NO_MEMORY);
 
-    memmove(mSalt, salt, mSaltLength);
+    memmove(mSalt, salt.data(), mSaltLength);
 
     mIterationCount = pbkdf2IterCount;
 
     mNextExpectedMsg = Protocols::SecureChannel::MsgType::PBKDFParamRequest;
     mPairingComplete = false;
+    mPasscodeID      = 0;
 
     ChipLogDetail(SecureChannel, "Waiting for PBKDF param request");
 
@@ -288,14 +307,14 @@ exit:
     return err;
 }
 
-CHIP_ERROR PASESession::WaitForPairing(const PASEVerifier & verifier, uint16_t myKeyId, SessionEstablishmentDelegate * delegate)
+CHIP_ERROR PASESession::WaitForPairing(const PASEVerifier & verifier, uint32_t pbkdf2IterCount, const ByteSpan & salt,
+                                       uint16_t passcodeID, uint16_t myKeyId, SessionEstablishmentDelegate * delegate)
 {
-    ReturnErrorOnFailure(WaitForPairing(0, kSpake2p_Iteration_Count,
-                                        reinterpret_cast<const unsigned char *>(kSpake2pKeyExchangeSalt),
-                                        strlen(kSpake2pKeyExchangeSalt), myKeyId, delegate));
+    ReturnErrorOnFailure(WaitForPairing(0, pbkdf2IterCount, salt, myKeyId, delegate));
 
-    memmove(&mPASEVerifier, verifier, sizeof(verifier));
+    memmove(&mPASEVerifier, &verifier, sizeof(verifier));
     mComputeVerifier = false;
+    mPasscodeID      = passcodeID;
 
     return CHIP_NO_ERROR;
 }
@@ -310,7 +329,7 @@ CHIP_ERROR PASESession::Pair(const Transport::PeerAddress peerAddress, uint32_t 
     mExchangeCtxt = exchangeCtxt;
     mExchangeCtxt->SetResponseTimeout(kSpake2p_Response_Timeout);
 
-    mConnectionState.SetPeerAddress(peerAddress);
+    SetPeerAddress(peerAddress);
 
     err = SendPBKDFParamRequest();
     SuccessOrExit(err);
@@ -330,8 +349,11 @@ void PASESession::OnResponseTimeout(ExchangeContext * ec)
                    ChipLogError(SecureChannel, "PASESession::OnResponseTimeout exchange doesn't match"));
     ChipLogError(SecureChannel,
                  "PASESession timed out while waiting for a response from the peer. Expected message type was %" PRIu8,
-                 static_cast<std::underlying_type_t<decltype(mNextExpectedMsg)>>(mNextExpectedMsg));
+                 to_underlying(mNextExpectedMsg));
     mDelegate->OnSessionEstablishmentError(CHIP_ERROR_TIMEOUT);
+    // Null out mExchangeCtxt so that Clear() doesn't try closing it.  The
+    // exchange will handle that.
+    mExchangeCtxt = nullptr;
     Clear();
 }
 
@@ -344,15 +366,25 @@ CHIP_ERROR PASESession::DeriveSecureSession(SecureSession & session, SecureSessi
 
 CHIP_ERROR PASESession::SendPBKDFParamRequest()
 {
+#ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+    std::map<std::string,std::string> random_initiator_map = {};
+    std::string random_number_string;
+#endif //CSG_TRACE_END
+
     System::PacketBufferHandle req = System::PacketBufferHandle::New(kPBKDFParamRandomNumberSize);
-    VerifyOrReturnError(!req.IsNull(), CHIP_SYSTEM_ERROR_NO_MEMORY);
+    VerifyOrReturnError(!req.IsNull(), CHIP_ERROR_NO_MEMORY);
 
     ReturnErrorOnFailure(DRBG_get_bytes(req->Start(), kPBKDFParamRandomNumberSize));
 
     req->SetDataLength(kPBKDFParamRandomNumberSize);
 
     // Update commissioning hash with the pbkdf2 param request that's being sent.
-    ReturnErrorOnFailure(mCommissioningHash.AddData(req->Start(), req->DataLength()));
+
+#ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+    request_message_map.insert(std::make_pair(messageFromInitiator_key, stringForDataBuffer(req->Start(), req->DataLength()))); 
+    mPASETrace.insert (std::make_pair(PBKDFParamRequest_key, request_message_map));
+#endif //CSG_TRACE_END
+    ReturnErrorOnFailure(mCommissioningHash.AddData(ByteSpan{ req->Start(), req->DataLength() }));
 
     mNextExpectedMsg = Protocols::SecureChannel::MsgType::PBKDFParamResponse;
 
@@ -378,7 +410,7 @@ CHIP_ERROR PASESession::HandlePBKDFParamRequest(const System::PacketBufferHandle
     ChipLogDetail(SecureChannel, "Received PBKDF param request");
 
     // Update commissioning hash with the received pbkdf2 param request
-    err = mCommissioningHash.AddData(req, reqlen);
+    err = mCommissioningHash.AddData(ByteSpan{ req, reqlen });
     SuccessOrExit(err);
 
     err = SendPBKDFParamResponse();
@@ -404,7 +436,7 @@ CHIP_ERROR PASESession::SendPBKDFParamResponse()
     uint8_t * msg = nullptr;
 
     resp = System::PacketBufferHandle::New(resplen);
-    VerifyOrReturnError(!resp.IsNull(), CHIP_SYSTEM_ERROR_NO_MEMORY);
+    VerifyOrReturnError(!resp.IsNull(), CHIP_ERROR_NO_MEMORY);
 
     msg = resp->Start();
 
@@ -423,9 +455,9 @@ CHIP_ERROR PASESession::SendPBKDFParamResponse()
     resp->SetDataLength(static_cast<uint16_t>(resplen));
 
     // Update commissioning hash with the pbkdf2 param response that's being sent.
-    ReturnErrorOnFailure(mCommissioningHash.AddData(resp->Start(), resp->DataLength()));
-    ReturnErrorOnFailure(SetupSpake2p(mIterationCount, mSalt, mSaltLength));
-    ReturnErrorOnFailure(mSpake2p.ComputeL(mPoint, &sizeof_point, &mPASEVerifier[1][0], kSpake2p_WS_Length));
+    ReturnErrorOnFailure(mCommissioningHash.AddData(ByteSpan{ resp->Start(), resp->DataLength() }));
+    ReturnErrorOnFailure(SetupSpake2p(mIterationCount, ByteSpan(mSalt, mSaltLength)));
+    ReturnErrorOnFailure(mSpake2p.ComputeL(mPoint, &sizeof_point, mPASEVerifier.mL, kSpake2p_WS_Length));
 
     mNextExpectedMsg = Protocols::SecureChannel::MsgType::PASE_Spake2p1;
 
@@ -467,11 +499,17 @@ CHIP_ERROR PASESession::HandlePBKDFParamResponse(const System::PacketBufferHandl
         VerifyOrExit(CanCastTo<uint32_t>(iterCount), err = CHIP_ERROR_INVALID_MESSAGE_LENGTH);
 
         // Update commissioning hash with the received pbkdf2 param response
-        err = mCommissioningHash.AddData(resp, resplen);
+        err = mCommissioningHash.AddData(ByteSpan{ resp, resplen });
         SuccessOrExit(err);
 
-        err = SetupSpake2p(static_cast<uint32_t>(iterCount), msgptr, saltlen);
+        err = SetupSpake2p(static_cast<uint32_t>(iterCount), ByteSpan(msgptr, saltlen));
         SuccessOrExit(err);
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+        response_message_map.insert(std::make_pair(messageFromResponder_key, stringForDataBuffer(msg->Start(), msg->DataLength())));
+        response_message_map.insert(std::make_pair(PBKDFParamResponse_salt_length_key, std::to_string(saltlen)));
+        response_message_map.insert(std::make_pair(PBKDFParamResponse_iter_count_key, std::to_string(iterCount)));
+        mPASETrace.insert (std::make_pair(PBKDFParamResponse_key, response_message_map));
+#endif //CSG_TRACE_END
     }
 
     err = SendMsg1();
@@ -490,14 +528,14 @@ CHIP_ERROR PASESession::SendMsg1()
     uint8_t X[kMAX_Point_Length];
     size_t X_len = sizeof(X);
 
-    ReturnErrorOnFailure(mSpake2p.BeginProver(nullptr, 0, nullptr, 0, &mPASEVerifier[0][0], kSpake2p_WS_Length,
-                                              &mPASEVerifier[1][0], kSpake2p_WS_Length));
+    ReturnErrorOnFailure(
+        mSpake2p.BeginProver(nullptr, 0, nullptr, 0, mPASEVerifier.mW0, kSpake2p_WS_Length, mPASEVerifier.mL, kSpake2p_WS_Length));
 
     ReturnErrorOnFailure(mSpake2p.ComputeRoundOne(NULL, 0, X, &X_len));
 
     Encoding::LittleEndian::PacketBufferWriter bbuf(System::PacketBufferHandle::New(sizeof(uint16_t) + X_len));
-    VerifyOrReturnError(!bbuf.IsNull(), CHIP_SYSTEM_ERROR_NO_MEMORY);
-    bbuf.Put16(mConnectionState.GetLocalKeyID());
+    VerifyOrReturnError(!bbuf.IsNull(), CHIP_ERROR_NO_MEMORY);
+    bbuf.Put16(GetLocalKeyId());
     bbuf.Put(&X[0], X_len);
     VerifyOrReturnError(bbuf.Fit(), CHIP_ERROR_NO_MEMORY);
 
@@ -508,6 +546,11 @@ CHIP_ERROR PASESession::SendMsg1()
                                                     SendFlags(SendMessageFlags::kExpectResponse)));
     ChipLogDetail(SecureChannel, "Sent spake2p msg1");
 
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+        pake_1_message_map.insert(std::make_pair(PAKE_1_Pa_key, stringForDataBuffer(&X[0], (uint16_t)X_len)));
+        pake_1_message_map.insert(std::make_pair(PAKE_1_key_id_key, std::to_string(GetLocalKeyId())));
+        mPASETrace.insert (std::make_pair(PAKE_1_key, pake_1_message_map));
+#endif //CSG_TRACE_END
     return CHIP_NO_ERROR;
 }
 
@@ -533,7 +576,7 @@ CHIP_ERROR PASESession::HandleMsg1_and_SendMsg2(const System::PacketBufferHandle
     VerifyOrExit(buf != nullptr, err = CHIP_ERROR_MESSAGE_INCOMPLETE);
     VerifyOrExit(buf_len == sizeof(encryptionKeyId) + kMAX_Point_Length, err = CHIP_ERROR_INVALID_MESSAGE_LENGTH);
 
-    err = mSpake2p.BeginVerifier(nullptr, 0, nullptr, 0, &mPASEVerifier[0][0], kSpake2p_WS_Length, mPoint, sizeof(mPoint));
+    err = mSpake2p.BeginVerifier(nullptr, 0, nullptr, 0, mPASEVerifier.mW0, kSpake2p_WS_Length, mPoint, sizeof(mPoint));
     SuccessOrExit(err);
 
     encryptionKeyId = chip::Encoding::LittleEndian::Read16(buf);
@@ -544,7 +587,7 @@ CHIP_ERROR PASESession::HandleMsg1_and_SendMsg2(const System::PacketBufferHandle
     SuccessOrExit(err);
 
     ChipLogDetail(SecureChannel, "Peer assigned session key ID %d", encryptionKeyId);
-    mConnectionState.SetPeerKeyID(encryptionKeyId);
+    SetPeerKeyId(encryptionKeyId);
 
     err = mSpake2p.ComputeRoundTwo(msg->Start(), msg->DataLength(), verifier, &verifier_len);
     SuccessOrExit(err);
@@ -556,8 +599,8 @@ CHIP_ERROR PASESession::HandleMsg1_and_SendMsg2(const System::PacketBufferHandle
 
     {
         Encoding::LittleEndian::PacketBufferWriter bbuf(System::PacketBufferHandle::New(data_len));
-        VerifyOrExit(!bbuf.IsNull(), err = CHIP_SYSTEM_ERROR_NO_MEMORY);
-        bbuf.Put16(mConnectionState.GetLocalKeyID());
+        VerifyOrExit(!bbuf.IsNull(), err = CHIP_ERROR_NO_MEMORY);
+        bbuf.Put16(GetLocalKeyId());
         bbuf.Put(&Y[0], Y_len);
         bbuf.Put(verifier, verifier_len);
         VerifyOrExit(bbuf.Fit(), err = CHIP_ERROR_NO_MEMORY);
@@ -610,13 +653,18 @@ CHIP_ERROR PASESession::HandleMsg2_and_SendMsg3(const System::PacketBufferHandle
     buf_len = msg->DataLength();
 
     ChipLogDetail(SecureChannel, "Peer assigned session key ID %d", encryptionKeyId);
-    mConnectionState.SetPeerKeyID(encryptionKeyId);
+    SetPeerKeyId(encryptionKeyId);
 
     err = mSpake2p.ComputeRoundTwo(buf, kMAX_Point_Length, verifier, &verifier_len_raw);
     SuccessOrExit(err);
     VerifyOrExit(CanCastTo<uint16_t>(verifier_len_raw), err = CHIP_ERROR_INVALID_MESSAGE_LENGTH);
     verifier_len = static_cast<uint16_t>(verifier_len_raw);
 
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+        pake_2_message_map.insert(std::make_pair(messageFromResponder_key, stringForDataBuffer(msg->Start(), msg->DataLength())));
+        pake_2_message_map.insert(std::make_pair(PAKE_2_encryption_id_key, std::to_string(encryptionKeyId)));
+        mPASETrace.insert (std::make_pair(PAKE_2_key, pake_2_message_map));
+#endif //CSG_TRACE_END
     {
         const uint8_t * hash = &buf[kMAX_Point_Length];
         err                  = mSpake2p.KeyConfirm(hash, kMAX_Hash_Length);
@@ -632,7 +680,7 @@ CHIP_ERROR PASESession::HandleMsg2_and_SendMsg3(const System::PacketBufferHandle
 
     {
         Encoding::PacketBufferWriter bbuf(System::PacketBufferHandle::New(verifier_len));
-        VerifyOrExit(!bbuf.IsNull(), err = CHIP_SYSTEM_ERROR_NO_MEMORY);
+        VerifyOrExit(!bbuf.IsNull(), err = CHIP_ERROR_NO_MEMORY);
 
         bbuf.Put(verifier, verifier_len);
         VerifyOrExit(bbuf.Fit(), err = CHIP_ERROR_NO_MEMORY);
@@ -640,14 +688,18 @@ CHIP_ERROR PASESession::HandleMsg2_and_SendMsg3(const System::PacketBufferHandle
         // Call delegate to send the Msg3 to peer
         err = mExchangeCtxt->SendMessage(Protocols::SecureChannel::MsgType::PASE_Spake2p3, bbuf.Finalize());
         SuccessOrExit(err);
+#if CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+        pake_3_message_map.insert(std::make_pair(messageFromInitiator_key, stringForDataBuffer(&verifier[0], verifier_len)));
+        mPASETrace.insert (std::make_pair(PAKE_3_key, pake_3_message_map));
+#endif //CSG_TRACE_END
     }
 
     ChipLogDetail(SecureChannel, "Sent spake2p msg3");
 
     mPairingComplete = true;
 
-    // Close the exchange, as no additional messages are expected from the peer
-    CloseExchange();
+    // Forget our exchange, as no additional messages are expected from the peer
+    mExchangeCtxt = nullptr;
 
     // Call delegate to indicate pairing completion
     mDelegate->OnSessionEstablished();
@@ -688,8 +740,8 @@ CHIP_ERROR PASESession::HandleMsg3(const System::PacketBufferHandle & msg)
 
     mPairingComplete = true;
 
-    // Close the exchange, as no additional messages are expected from the peer
-    CloseExchange();
+    // Forget our exchange, as no additional messages are expected from the peer
+    mExchangeCtxt = nullptr;
 
     // Call delegate to indicate pairing completion
     mDelegate->OnSessionEstablished();
@@ -731,7 +783,6 @@ CHIP_ERROR PASESession::HandleErrorMsg(const System::PacketBufferHandle & msg)
         "Assuming size of Spake2pErrorMsg message is 1 octet, so that endian-ness conversion and memory alignment is not needed");
 
     Spake2pErrorMsg * pMsg = reinterpret_cast<Spake2pErrorMsg *>(msg->Start());
-    ChipLogError(SecureChannel, "Received error during pairing process. %s", ErrorStr(pMsg->error));
 
     CHIP_ERROR err = CHIP_NO_ERROR;
     switch (pMsg->error)
@@ -748,6 +799,7 @@ CHIP_ERROR PASESession::HandleErrorMsg(const System::PacketBufferHandle & msg)
         err = CHIP_ERROR_INTERNAL;
         break;
     };
+    ChipLogError(SecureChannel, "Received error during pairing process. %s", ErrorStr(err));
 
     return err;
 }
@@ -764,8 +816,6 @@ CHIP_ERROR PASESession::ValidateReceivedMessage(ExchangeContext * exchange, cons
     {
         if (mExchangeCtxt != exchange)
         {
-            // Close the incoming exchange explicitly, as the cleanup code only closes mExchangeCtxt
-            exchange->Close();
             ReturnErrorOnFailure(CHIP_ERROR_INVALID_ARGUMENT);
         }
     }
@@ -783,13 +833,13 @@ CHIP_ERROR PASESession::ValidateReceivedMessage(ExchangeContext * exchange, cons
     return CHIP_NO_ERROR;
 }
 
-void PASESession::OnMessageReceived(ExchangeContext * exchange, const PacketHeader & packetHeader,
-                                    const PayloadHeader & payloadHeader, System::PacketBufferHandle && msg)
+CHIP_ERROR PASESession::OnMessageReceived(ExchangeContext * exchange, const PacketHeader & packetHeader,
+                                          const PayloadHeader & payloadHeader, System::PacketBufferHandle && msg)
 {
     CHIP_ERROR err = ValidateReceivedMessage(exchange, packetHeader, payloadHeader, std::move(msg));
     SuccessOrExit(err);
 
-    mConnectionState.SetPeerAddress(mMessageDispatch.GetPeerAddress());
+    SetPeerAddress(mMessageDispatch.GetPeerAddress());
 
     switch (static_cast<Protocols::SecureChannel::MsgType>(payloadHeader.GetMessageType()))
     {
@@ -827,10 +877,14 @@ exit:
     // Call delegate to indicate pairing failure
     if (err != CHIP_NO_ERROR)
     {
+        // Null out mExchangeCtxt so that Clear() doesn't try closing it.  The
+        // exchange will handle that.
+        mExchangeCtxt = nullptr;
         Clear();
         ChipLogError(SecureChannel, "Failed during PASE session setup. %s", ErrorStr(err));
         mDelegate->OnSessionEstablishmentError(err);
     }
+    return err;
 }
 
 } // namespace chip

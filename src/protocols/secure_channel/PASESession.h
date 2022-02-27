@@ -26,6 +26,8 @@
 
 #pragma once
 
+#include <csg_test_harness/constants.h>
+
 #include <crypto/CHIPCryptoPAL.h>
 #if CHIP_CRYPTO_HSM
 #include <crypto/hsm/CHIPCryptoPALHsm.h>
@@ -39,7 +41,6 @@
 #include <support/Base64.h>
 #include <system/SystemPacketBuffer.h>
 #include <transport/PairingSession.h>
-#include <transport/PeerConnectionState.h>
 #include <transport/SecureSession.h>
 #include <transport/raw/MessageHeader.h>
 #include <transport/raw/PeerAddress.h>
@@ -48,8 +49,16 @@ namespace chip {
 
 extern const char * kSpake2pI2RSessionInfo;
 extern const char * kSpake2pR2ISessionInfo;
+extern const char * kSpake2pKeyExchangeSalt;
 
 constexpr uint16_t kPBKDFParamRandomNumberSize = 32;
+constexpr uint32_t kSpake2p_Iteration_Count    = 100;
+
+// Specifications section 3.9. Password-Based Key Derivation Function
+constexpr uint32_t kPBKDFMinimumIterations = 1000;
+constexpr uint32_t kPBKDFMaximumIterations = 100000;
+constexpr uint32_t kPBKDFMinimumSaltLen    = 16;
+constexpr uint32_t kPBKDFMaximumSaltLen    = 32;
 
 using namespace Crypto;
 
@@ -66,7 +75,11 @@ struct PASESessionSerializable
     uint16_t mPeerKeyId;
 };
 
-typedef uint8_t PASEVerifier[2][kSpake2p_WS_Length];
+struct PASEVerifier
+{
+    uint8_t mW0[kSpake2p_WS_Length];
+    uint8_t mL[kSpake2p_WS_Length];
+};
 
 class DLL_EXPORT PASESession : public Messaging::ExchangeDelegate, public PairingSession
 {
@@ -77,6 +90,9 @@ public:
     PASESession & operator=(const PASESession &) = default;
     PASESession & operator=(PASESession &&) = default;
 
+#ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+    std::map< std::string, std::map< std::string, std::string>> *getPASETrace();
+#endif //CSG_TRACE_END
     virtual ~PASESession();
 
     /**
@@ -86,26 +102,29 @@ public:
      * @param mySetUpPINCode  Setup PIN code of the local device
      * @param pbkdf2IterCount Iteration count for PBKDF2 function
      * @param salt            Salt to be used for SPAKE2P operation
-     * @param saltLen         Length of salt
      * @param myKeyId         Key ID to be assigned to the secure session on the peer node
      * @param delegate        Callback object
      *
      * @return CHIP_ERROR     The result of initialization
      */
-    CHIP_ERROR WaitForPairing(uint32_t mySetUpPINCode, uint32_t pbkdf2IterCount, const uint8_t * salt, size_t saltLen,
-                              uint16_t myKeyId, SessionEstablishmentDelegate * delegate);
+    CHIP_ERROR WaitForPairing(uint32_t mySetUpPINCode, uint32_t pbkdf2IterCount, const ByteSpan & salt, uint16_t myKeyId,
+                              SessionEstablishmentDelegate * delegate);
 
     /**
      * @brief
      *   Initialize using PASE verifier and wait for pairing requests.
      *
      * @param verifier        PASE verifier to be used for SPAKE2P pairing
+     * @param pbkdf2IterCount Iteration count for PBKDF2 function
+     * @param salt            Salt to be used for SPAKE2P operation
+     * @param passcodeID      Passcode ID assigned by the administrator to this PASE verifier
      * @param myKeyId         Key ID to be assigned to the secure session on the peer node
      * @param delegate        Callback object
      *
      * @return CHIP_ERROR     The result of initialization
      */
-    CHIP_ERROR WaitForPairing(const PASEVerifier & verifier, uint16_t myKeyId, SessionEstablishmentDelegate * delegate);
+    CHIP_ERROR WaitForPairing(const PASEVerifier & verifier, uint32_t pbkdf2IterCount, const ByteSpan & salt, uint16_t passcodeID,
+                              uint16_t myKeyId, SessionEstablishmentDelegate * delegate);
 
     /**
      * @brief
@@ -129,13 +148,16 @@ public:
      * @brief
      *   Generate a new PASE verifier.
      *
-     * @param verifier      The generated PASE verifier
-     * @param useRandomPIN  Generate a random setup PIN, if true. Else, use the provided PIN
-     * @param setupPIN      Provided setup PIN (if useRandomPIN is false), or the generated PIN
+     * @param verifier        The generated PASE verifier
+     * @param pbkdf2IterCount Iteration count for PBKDF2 function
+     * @param salt            Salt to be used for SPAKE2P operation
+     * @param useRandomPIN    Generate a random setup PIN, if true. Else, use the provided PIN
+     * @param setupPIN        Provided setup PIN (if useRandomPIN is false), or the generated PIN
      *
      * @return CHIP_ERROR      The result of PASE verifier generation
      */
-    static CHIP_ERROR GeneratePASEVerifier(PASEVerifier & verifier, bool useRandomPIN, uint32_t & setupPIN);
+    static CHIP_ERROR GeneratePASEVerifier(PASEVerifier & verifier, uint32_t pbkdf2IterCount, const ByteSpan & salt,
+                                           bool useRandomPIN, uint32_t & setupPIN);
 
     /**
      * @brief
@@ -149,27 +171,9 @@ public:
      */
     CHIP_ERROR DeriveSecureSession(SecureSession & session, SecureSession::SessionRole role) override;
 
-    /**
-     * @brief
-     *  Return the associated peer key id
-     *
-     * @return uint16_t The associated peer key id
-     */
-    uint16_t GetPeerKeyId() override { return mConnectionState.GetPeerKeyID(); }
-
-    /**
-     * @brief
-     *  Return the associated local key id
-     *
-     * @return uint16_t The assocated local key id
-     */
-    uint16_t GetLocalKeyId() override { return mConnectionState.GetLocalKeyID(); }
-
     const char * GetI2RSessionInfo() const override { return kSpake2pI2RSessionInfo; }
 
     const char * GetR2ISessionInfo() const override { return kSpake2pR2ISessionInfo; }
-
-    Transport::PeerConnectionState & PeerConnection() { return mConnectionState; }
 
     /** @brief Serialize the Pairing Session to a string.
      *
@@ -195,6 +199,7 @@ public:
      **/
     CHIP_ERROR FromSerializable(const PASESessionSerializable & output);
 
+    // TODO: remove Clear, we should create a new instance instead reset the old instance.
     /** @brief This function zeroes out and resets the memory used by the object.
      **/
     void Clear();
@@ -216,8 +221,8 @@ public:
      *  @param[in]    payloadHeader A reference to the PayloadHeader object.
      *  @param[in]    payload       A handle to the PacketBuffer object holding the message payload.
      */
-    void OnMessageReceived(Messaging::ExchangeContext * ec, const PacketHeader & packetHeader, const PayloadHeader & payloadHeader,
-                           System::PacketBufferHandle && payload) override;
+    CHIP_ERROR OnMessageReceived(Messaging::ExchangeContext * ec, const PacketHeader & packetHeader,
+                                 const PayloadHeader & payloadHeader, System::PacketBufferHandle && payload) override;
 
     /**
      * @brief
@@ -246,10 +251,10 @@ private:
     CHIP_ERROR ValidateReceivedMessage(Messaging::ExchangeContext * exchange, const PacketHeader & packetHeader,
                                        const PayloadHeader & payloadHeader, System::PacketBufferHandle && msg);
 
-    static CHIP_ERROR ComputePASEVerifier(uint32_t mySetUpPINCode, uint32_t pbkdf2IterCount, const uint8_t * salt, size_t saltLen,
+    static CHIP_ERROR ComputePASEVerifier(uint32_t mySetUpPINCode, uint32_t pbkdf2IterCount, const ByteSpan & salt,
                                           PASEVerifier & verifier);
 
-    CHIP_ERROR SetupSpake2p(uint32_t pbkdf2IterCount, const uint8_t * salt, size_t saltLen);
+    CHIP_ERROR SetupSpake2p(uint32_t pbkdf2IterCount, const ByteSpan & salt);
 
     CHIP_ERROR SendPBKDFParamRequest();
     CHIP_ERROR HandlePBKDFParamRequest(const System::PacketBufferHandle & msg);
@@ -272,6 +277,17 @@ private:
 
     Protocols::SecureChannel::MsgType mNextExpectedMsg = Protocols::SecureChannel::MsgType::PASE_Spake2pError;
 
+#ifdef CHIP_CSG_TEST_HARNESS //CSG_TRACE_BEGIN
+    std::map< std::string, std::map< std::string, std::string>> mPASETrace;
+    // PASE parameters maps
+    std::map<std::string,std::string> request_message_map;
+    std::map<std::string,std::string> response_message_map;
+    std::map<std::string,std::string> pake_1_message_map;
+    std::map<std::string,std::string> pake_2_message_map;
+    std::map<std::string,std::string> pake_3_message_map;
+
+#endif //CSG_TRACE_END
+
 #ifdef ENABLE_HSM_SPAKE
     Spake2pHSM_P256_SHA256_HKDF_HMAC mSpake2p;
 #else
@@ -281,6 +297,8 @@ private:
 
     /* w0s and w1s */
     PASEVerifier mPASEVerifier;
+
+    uint16_t mPasscodeID = 0;
 
     uint32_t mSetupPINCode;
 
@@ -306,8 +324,6 @@ protected:
     size_t mKeLen = sizeof(mKe);
 
     bool mPairingComplete = false;
-
-    Transport::PeerConnectionState mConnectionState;
 };
 
 /*
@@ -327,9 +343,17 @@ constexpr chip::NodeId kTestDeviceNodeId     = 12344321;
 class SecurePairingUsingTestSecret : public PairingSession
 {
 public:
-    SecurePairingUsingTestSecret() {}
+    SecurePairingUsingTestSecret()
+    {
+        SetLocalKeyId(0);
+        SetPeerKeyId(0);
+    }
 
-    SecurePairingUsingTestSecret(uint16_t peerKeyId, uint16_t localKeyId) : mPeerKeyID(peerKeyId), mLocalKeyID(localKeyId) {}
+    SecurePairingUsingTestSecret(uint16_t peerKeyId, uint16_t localKeyId)
+    {
+        SetLocalKeyId(localKeyId);
+        SetPeerKeyId(peerKeyId);
+    }
 
     CHIP_ERROR DeriveSecureSession(SecureSession & session, SecureSession::SessionRole role) override
     {
@@ -345,16 +369,12 @@ public:
         memset(&serializable, 0, sizeof(serializable));
         serializable.mKeLen           = static_cast<uint16_t>(secretLen);
         serializable.mPairingComplete = 1;
-        serializable.mLocalKeyId      = mLocalKeyID;
-        serializable.mPeerKeyId       = mPeerKeyID;
+        serializable.mLocalKeyId      = GetLocalKeyId();
+        serializable.mPeerKeyId       = GetPeerKeyId();
 
         memcpy(serializable.mKe, kTestSecret, secretLen);
         return CHIP_NO_ERROR;
     }
-
-    uint16_t GetPeerKeyId() override { return mPeerKeyID; }
-
-    uint16_t GetLocalKeyId() override { return mLocalKeyID; }
 
     const char * GetI2RSessionInfo() const override { return "i2r"; }
 
@@ -362,9 +382,6 @@ public:
 
 private:
     const char * kTestSecret = "Test secret for key derivation";
-
-    uint16_t mPeerKeyID  = 0;
-    uint16_t mLocalKeyID = 0;
 };
 
 typedef struct PASESessionSerialized

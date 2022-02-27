@@ -26,7 +26,9 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from chip import ChipDeviceCtrl
+from chip import ChipCommissionableNodeCtrl
 from chip import exceptions
+import argparse
 import ctypes
 import sys
 import os
@@ -38,12 +40,15 @@ import base64
 import textwrap
 import time
 import string
-import re
 import traceback
 from cmd import Cmd
-from chip.ChipBleUtility import FAKE_CONN_OBJ_VALUE
 from chip.setup_payload import SetupPayload
+from xmlrpc.server import SimpleXMLRPCServer
+from enum import Enum
+from typing import Any, Dict, Optional, Text
 
+from enum import Enum
+from typing import Any, Dict,Optional
 # Extend sys.path with one or more directories, relative to the location of the
 # running script, in which the chip package might be found .  This makes it
 # possible to run the device manager shell from a non-standard install location,
@@ -70,6 +75,16 @@ if platform.system() == 'Darwin':
     from chip.ChipCoreBluetoothMgr import CoreBluetoothManager as BleManager
 elif sys.platform.startswith('linux'):
     from chip.ChipBluezMgr import BluezManager as BleManager
+
+
+class StatusCodeEnum(Enum):
+    SUCCESS = 0
+    FAILED =  1
+
+class RPCResponseKeyEnum(Enum):
+    STATUS = "status"
+    RESULT = "result"
+    ERROR  = "error"
 
 # The exceptions for CHIP Device Controller CLI
 
@@ -113,6 +128,19 @@ def ParseEncodedString(value):
     raise ParsingError("only str and hex encoding is supported")
 
 
+def ParseValueWithType(value, type):
+    if type == 'int':
+        return int(value)
+    elif type == 'str':
+        return value
+    elif type == 'bytes':
+        return ParseEncodedString(value)
+    elif type == 'bool':
+        return (value.upper() not in ['F', 'FALSE', '0'])
+    else:
+        raise ParsingError('cannot recognize type: {}'.format(type))
+
+
 def FormatZCLArguments(args, command):
     commandArgs = {}
     for kvPair in args:
@@ -120,12 +148,7 @@ def FormatZCLArguments(args, command):
             raise ParsingError("Argument should in key=value format")
         key, value = kvPair.split("=", 1)
         valueType = command.get(key, None)
-        if valueType == 'int':
-            commandArgs[key] = int(value)
-        elif valueType == 'str':
-            commandArgs[key] = value
-        elif valueType == 'bytes':
-            commandArgs[key] = ParseEncodedString(value)
+        commandArgs[key] = ParseValueWithType(value, valueType)
     return commandArgs
 
 
@@ -150,14 +173,18 @@ class DeviceMgrCmd(Cmd):
         self.devCtrl = ChipDeviceCtrl.ChipDeviceController(
             controllerNodeId=controllerNodeId, bluetoothAdapter=bluetoothAdapter)
 
+        self.commissionableNodeCtrl = ChipCommissionableNodeCtrl.ChipCommissionableNodeController()
+
         # If we are on Linux and user selects non-default bluetooth adapter.
         if sys.platform.startswith("linux") and (bluetoothAdapter is not None):
             try:
                 self.bleMgr = BleManager(self.devCtrl)
-                self.bleMgr.ble_adapter_select("hci{}".format(bluetoothAdapter))
+                self.bleMgr.ble_adapter_select(
+                    "hci{}".format(bluetoothAdapter))
             except Exception as ex:
                 traceback.print_exc()
-                print("Failed to initialize BLE, if you don't have BLE, run chip-device-ctrl with --no-ble")
+                print(
+                    "Failed to initialize BLE, if you don't have BLE, run chip-device-ctrl with --no-ble")
                 raise ex
 
         self.historyFileName = os.path.expanduser(
@@ -186,6 +213,7 @@ class DeviceMgrCmd(Cmd):
 
         "connect",
         "close-ble",
+        "close-session",
         "resolve",
         "zcl",
         "zclread",
@@ -311,23 +339,52 @@ class DeviceMgrCmd(Cmd):
             print(str(ex))
             return
 
-
     def do_setuppayload(self, line):
         """
+        setup-payload generate [options]
+
+        Options:
+          -vr  Version        
+          -vi  Vendor ID
+          -pi  Product ID
+          -cf  Custom Flow [Standard = 0, UserActionRequired = 1, Custom = 2]
+          -dc  Discovery Capabilities [SoftAP = 1 | BLE = 2 | OnNetwork = 4]
+          -dv  Discriminator Value
+          -ps  Passcode
+
         setup-payload parse-manual <manual-pairing-code>
         setup-payload parse-qr <qr-code-payload>
         """
         try:
-            args = shlex.split(line)
-            if (len(args) != 2) or (args[0] not in ("parse-manual", "parse-qr")):
+            arglist = shlex.split(line)
+            if arglist[0] not in ("generate", "parse-manual", "parse-qr"):
                 self.do_help("setup-payload")
                 return
 
-            if args[0] == "parse-manual":
-                SetupPayload().ParseManualPairingCode(args[1]).Print()
+            if arglist[0] == "generate":
+                parser = argparse.ArgumentParser()
+                parser.add_argument("-vr", type=int, default=0, dest='version')
+                parser.add_argument(
+                    "-pi", type=int, default=0, dest='productId')
+                parser.add_argument(
+                    "-vi", type=int, default=0, dest='vendorId')
+                parser.add_argument(
+                    '-cf', type=int, default=0, dest='customFlow')
+                parser.add_argument(
+                    "-dc", type=int, default=0, dest='capabilities')
+                parser.add_argument(
+                    "-dv", type=int, default=0, dest='discriminator')
+                parser.add_argument("-ps", type=int, dest='passcode')
+                args = parser.parse_args(arglist[1:])
 
-            if args[0] == "parse-qr":
-                SetupPayload().ParseQrCode(args[1]).Print()
+                SetupPayload().PrintOnboardingCodes(args.passcode, args.vendorId, args.productId,
+                                                    args.discriminator, args.customFlow, args.capabilities, args.version)
+
+            if arglist[0] == "parse-manual":
+                SetupPayload().ParseManualPairingCode(arglist[1]).Print()
+
+            if arglist[0] == "parse-qr":
+                SetupPayload().ParseQrCode(arglist[1]).Print()
 
         except exceptions.ChipStackException as ex:
             print(str(ex))
@@ -409,26 +466,22 @@ class DeviceMgrCmd(Cmd):
 
         if int(setupPayload.attributes["RendezvousInformation"]) & onnetwork:
             print("Attempting to find device on Network")
-            longDiscriminator = ctypes.c_uint16(int(setupPayload.attributes['Discriminator']))
-            self.devCtrl.DiscoverCommissioningLongDiscriminator(longDiscriminator)
+            longDiscriminator = ctypes.c_uint16(
+                int(setupPayload.attributes['Discriminator']))
+            self.devCtrl.DiscoverCommissionableNodesLongDiscriminator(
+                longDiscriminator)
             print("Waiting for device responses...")
-            strlen = 100;
+            strlen = 100
             addrStrStorage = ctypes.create_string_buffer(strlen)
-            count = 0
             # If this device is on the network and we're looking specifically for 1 device,
             # expect a quick response.
-            maxWaitTime = 1
-            ok = False
-            while count < maxWaitTime:
-                ok = self.devCtrl.GetIPForDiscoveredDevice(0, addrStrStorage, strlen)
-                if ok:
-                    break
-                time.sleep(0.2)
-                count = count + 0.2
-            if ok:
+            if self.wait_for_one_discovered_device():
+                self.devCtrl.GetIPForDiscoveredDevice(
+                    0, addrStrStorage, strlen)
                 addrStr = addrStrStorage.value.decode('utf-8')
                 print("Connecting to device at " + addrStr)
-                pincode = ctypes.c_uint32(int(setupPayload.attributes['SetUpPINCode']))
+                pincode = ctypes.c_uint32(
+                    int(setupPayload.attributes['SetUpPINCode']))
                 if self.devCtrl.ConnectIP(addrStrStorage, pincode, nodeid):
                     print("Connected")
                     return 0
@@ -440,8 +493,10 @@ class DeviceMgrCmd(Cmd):
 
         if int(setupPayload.attributes["RendezvousInformation"]) & ble:
             print("Attempting to connect via BLE")
-            longDiscriminator = ctypes.c_uint16(int(setupPayload.attributes['Discriminator']))
-            pincode = ctypes.c_uint32(int(setupPayload.attributes['SetUpPINCode']))
+            longDiscriminator = ctypes.c_uint16(
+                int(setupPayload.attributes['Discriminator']))
+            pincode = ctypes.c_uint32(
+                int(setupPayload.attributes['SetUpPINCode']))
             if self.devCtrl.ConnectBLE(longDiscriminator, pincode, nodeid):
                 print("Connected")
                 return 0
@@ -480,7 +535,7 @@ class DeviceMgrCmd(Cmd):
                     "utf-8"), int(args[2]), nodeid)
             elif args[0] == "-ble" and len(args) >= 3:
                 self.devCtrl.ConnectBLE(int(args[1]), int(args[2]), nodeid)
-            elif args[0] == '-qr' and len(args) >=2:
+            elif args[0] == '-qr' and len(args) >= 2:
                 if len(args) == 3:
                     nodeid = int(args[2])
                 print("Parsing QR code {}".format(args[1]))
@@ -495,6 +550,23 @@ class DeviceMgrCmd(Cmd):
         except exceptions.ChipStackException as ex:
             print(str(ex))
             return
+
+    def do_closesession(self, line):
+        """
+        close-session <nodeid>
+
+        Close any session associated with a given node ID.
+        """
+        try:
+            parser = argparse.ArgumentParser()
+            parser.add_argument('nodeid', type=int, help='Peer node ID')
+            args = parser.parse_args(shlex.split(line))
+
+            self.devCtrl.CloseSession(args.nodeid)
+        except exceptions.ChipStackException as ex:
+            print(str(ex))
+        except:
+            self.do_help("close-session")
 
     def do_resolve(self, line):
         """
@@ -518,49 +590,109 @@ class DeviceMgrCmd(Cmd):
             print(str(ex))
             return
 
+    def wait_for_one_discovered_device(self):
+        print("Waiting for device responses...")
+        strlen = 100
+        addrStrStorage = ctypes.create_string_buffer(strlen)
+        count = 0
+        maxWaitTime = 2
+        while (not self.devCtrl.GetIPForDiscoveredDevice(0, addrStrStorage, strlen) and count < maxWaitTime):
+            time.sleep(0.2)
+            count = count + 0.2
+        return count < maxWaitTime
+
+    def wait_for_many_discovered_devices(self):
+        # Discovery happens through mdns, which means we need to wait for responses to come back.
+        # TODO(cecille): I suppose we could make this a command line arg. Or Add a callback when
+        # x number of responses are received. For now, just 2 seconds. We can all wait that long.
+        print("Waiting for device responses...")
+        time.sleep(2)
+
     def do_discover(self, line):
         """
         discover -qr qrcode
         discover -all
+        discover -l long_discriminator
+        discover -s short_discriminator
+        discover -v vendor_id
+        discover -t device_type
+        discover -c commissioning_enabled
+        discover -a
 
         discover command is used to discover available devices.
         """
         try:
-            args = shlex.split(line)
-            if len(args) < 1:
+            arglist = shlex.split(line)
+            if len(arglist) < 1:
                 print("Usage:")
                 self.do_help("discover")
                 return
-
-            if args[0] == "-qr" and len(args) >= 2:
-                setupPayload = SetupPayload().ParseQrCode(args[1])
-                longDiscriminator = ctypes.c_uint16(int(setupPayload.attributes['Discriminator']))
-                self.devCtrl.DiscoverCommissioningLongDiscriminator(longDiscriminator)
-                print("Waiting for device responses...")
-                strlen = 100;
-                addrStrStorage = ctypes.create_string_buffer(strlen)
-                count = 0
-                maxWaitTime = 2
-                while (not self.devCtrl.GetIPForDiscoveredDevice(0, addrStrStorage, strlen) and count < maxWaitTime):
-                    time.sleep(0.2)
-                    count = count + 0.2
-            elif args[0] == "-all":
+            parser = argparse.ArgumentParser()
+            group = parser.add_mutually_exclusive_group()
+            group.add_argument(
+                '-all', help='discover all commissionable nodes and commissioners', action='store_true')
+            group.add_argument(
+                '-qr', help='discover commissionable nodes matching provided QR code', type=str)
+            group.add_argument(
+                '-l', help='discover commissionable nodes with given long discriminator', type=int)
+            group.add_argument(
+                '-s', help='discover commissionable nodes with given short discriminator', type=int)
+            group.add_argument(
+                '-v', help='discover commissionable nodes wtih given vendor ID', type=int)
+            group.add_argument(
+                '-t', help='discover commissionable nodes with given device type', type=int)
+            group.add_argument(
+                '-c', help='discover commissionable nodes with given commissioning mode', type=int)
+            group.add_argument(
+                '-a', help='discover commissionable nodes put in commissioning mode from command', action='store_true')
+            args = parser.parse_args(arglist)
+            if args.all:
+                self.commissionableNodeCtrl.DiscoverCommissioners()
+                self.wait_for_many_discovered_devices()
+                self.commissionableNodeCtrl.PrintDiscoveredCommissioners()
                 self.devCtrl.DiscoverAllCommissioning()
-                # Discovery happens through mdns, which means we need to wait for responses to come back.
-                # TODO(cecille): I suppose we could make this a command line arg. Or Add a callback when
-                # x number of responses are received. For now, just 2 seconds. We can all wait that long.
-                print("Waiting for device responses...")
-                time.sleep(2)
+                self.wait_for_many_discovered_devices()
+            elif args.qr is not None:
+                setupPayload = SetupPayload().ParseQrCode(args.qr)
+                longDiscriminator = ctypes.c_uint16(
+                    int(setupPayload.attributes['Discriminator']))
+                self.devCtrl.DiscoverCommissionableNodesLongDiscriminator(
+                    longDiscriminator)
+                self.wait_for_one_discovered_device()
+            elif args.l is not None:
+                self.devCtrl.DiscoverCommissionableNodesLongDiscriminator(
+                    ctypes.c_uint16(args.l))
+                self.wait_for_one_discovered_device()
+            elif args.s is not None:
+                self.devCtrl.DiscoverCommissionableNodesShortDiscriminator(
+                    ctypes.c_uint16(args.s))
+                self.wait_for_one_discovered_device()
+            elif args.v is not None:
+                self.devCtrl.DiscoverCommissionableNodesVendor(
+                    ctypes.c_uint16(args.v))
+                self.wait_for_many_discovered_devices()
+            elif args.t is not None:
+                self.devCtrl.DiscoverCommissionableNodesDeviceType(
+                    ctypes.c_uint16(args.t))
+                self.wait_for_many_discovered_devices()
+            elif args.c is not None:
+                self.devCtrl.DiscoverCommissionableNodesCommissioningEnabled(
+                    ctypes.c_uint16(args.c))
+                self.wait_for_many_discovered_devices()
+            elif args.a is not None:
+                self.devCtrl.DiscoverCommissionableNodesCommissioningEnabledFromCommand()
+                self.wait_for_many_discovered_devices()
             else:
-                print("Usage:")
                 self.do_help("discover")
                 return
+            self.devCtrl.PrintDiscoveredDevices()
         except exceptions.ChipStackException as ex:
             print('exception')
             print(str(ex))
             return
-
-        self.devCtrl.PrintDiscoveredDevices()
+        except:
+            self.do_help("discover")
+            return
 
     def do_zcl(self, line):
         """
@@ -633,8 +765,10 @@ class DeviceMgrCmd(Cmd):
             elif len(args) == 5:
                 if args[0] not in all_attrs:
                     raise exceptions.UnknownCluster(args[0])
-                self.devCtrl.ZCLReadAttribute(args[0], args[1], int(
+                res = self.devCtrl.ZCLReadAttribute(args[0], args[1], int(
                     args[2]), int(args[3]), int(args[4]))
+                if res != None:
+                    print(repr(res))
             else:
                 self.do_help("zclread")
         except exceptions.ChipStackException as ex:
@@ -658,12 +792,16 @@ class DeviceMgrCmd(Cmd):
                 if args[1] not in all_attrs:
                     raise exceptions.UnknownCluster(args[1])
                 cluster_attrs = all_attrs.get(args[1], {})
-                print('\n'.join(["{}: {}".format(key, cluster_attrs[key]["type"]) for key in cluster_attrs.keys() if cluster_attrs[key].get("writable", False)]))
+                print('\n'.join(["{}: {}".format(key, cluster_attrs[key]["type"])
+                      for key in cluster_attrs.keys() if cluster_attrs[key].get("writable", False)]))
             elif len(args) == 6:
                 if args[0] not in all_attrs:
                     raise exceptions.UnknownCluster(args[0])
-                self.devCtrl.ZCLWriteAttribute(args[0], args[1], int(
-                    args[2]), int(args[3]), int(args[4]), args[5])
+                attribute_type = all_attrs.get(args[0], {}).get(
+                    args[1], {}).get("type", None)
+                res = self.devCtrl.ZCLWriteAttribute(args[0], args[1], int(
+                    args[2]), int(args[3]), int(args[4]), ParseValueWithType(args[5], attribute_type))
+                print(repr(res))
             else:
                 self.do_help("zclwrite")
         except exceptions.ChipStackException as ex:
@@ -687,7 +825,8 @@ class DeviceMgrCmd(Cmd):
                 if args[1] not in all_attrs:
                     raise exceptions.UnknownCluster(args[1])
                 cluster_attrs = all_attrs.get(args[1], {})
-                print('\n'.join([key for key in cluster_attrs.keys() if cluster_attrs[key].get("reportable", False)]))
+                print('\n'.join([key for key in cluster_attrs.keys(
+                ) if cluster_attrs[key].get("reportable", False)]))
             elif len(args) == 7:
                 if args[0] not in all_attrs:
                     raise exceptions.UnknownCluster(args[0])
@@ -775,8 +914,382 @@ class DeviceMgrCmd(Cmd):
     def emptyline(self):
         pass
 
+###  Additions needed by the Test Harness Tool ###
+# TODO: Implement a custom device manager instead of using the existing manager object
+# https://github.com/chip-csg/connectedhomeip/issues/8
+device_manager = DeviceMgrCmd(rendezvousAddr=None,
+                              controllerNodeId=0,
+                              bluetoothAdapter=0)
+
+
+# CHIP commands needed by the Harness Tool
+def echo_alive(message):
+    print(message)
+    return message
+
+
+# XMLRPC server is not able to provided large int, better to get string and recast to int
+def resolve(fabric_id: Text, node_id: int) -> Dict[Text, Any]:
+    """
+    Method to resolve the ip address based on fabric id and node id of commissioned device.
+    Args:
+        fabric_id (text): fabric id assigned to the DUT
+        node_id (int): node id assigned to the DUT
+
+    Returns:
+        Dict[str, Any]: Dictionary of RPC response for ZCL cluster command
+    """
+    try:
+        __check_supported_os()
+        error = device_manager.devCtrl.ResolveNode(int(fabric_id), node_id)
+        if error != 0:
+            return __get_response_dict(status=StatusCodeEnum.FAILED,
+                                       error=f"Failed to resolve node, with error code: {error}")
+
+        address = device_manager.devCtrl.GetAddressAndPort(node_id)
+        if address is not None:
+            address = "{}:{}".format(
+                *address)  
+            return __get_response_dict(status=StatusCodeEnum.SUCCESS, result={'address': address}) 
+            
+    except Exception as e:
+        return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
+
+def zcl_command(
+        cluster: str,
+        command: str,
+        node_id: int,
+        endpoint_id: Optional[int] = 1,
+        group_id: Optional[int] = 0,
+        optional_args: Optional[dict] = {}
+        ) -> Dict[str, Any] :
+    """Generic API for sending ZCL Cluster commands
+    Each ZCL command has following format:
+    zcl <Cluster> <Command> <Node Id> <Endpoint Id> <Group Id> [optional arguments]
+
+    Args:
+        cluster (str): Name of cluster
+        command (str): Command to be run for the mentioned cluster
+        node_id (int): node_id assigned to the DUT
+        endpoint_id (int): Optional, endpoint id
+        group_ip (int): Optional, group id
+        optional_args (dict): Optinal, dictionary of optional arguements for zcl
+        cluster commands
+
+    Raises:
+        exceptions.UnknownCommand: when incorrect cluster and/or command passed
+
+    Returns:
+        Dict[str, Any]: Dictionary of RPC response for ZCL cluster command
+    """
+    try:
+        __check_supported_os()
+
+        all_commands = device_manager.devCtrl.ZCLCommandList()
+        command_arg = all_commands.get(cluster).get(command, None)
+        if command_arg is None:
+            raise exceptions.UnknownCommand(cluster, command)
+        formatted_zcl_args = __format_zcl_arguments_from_dict(optional_args, command_arg)
+
+        error, response = device_manager.devCtrl.ZCLSend(
+                cluster=cluster,
+                command=command,
+                nodeid=node_id,
+                endpoint=endpoint_id,
+                groupid=group_id,
+                args=formatted_zcl_args,
+                blocking=True)
+        if error:
+            return __get_response_dict(status = StatusCodeEnum.FAILED)
+        elif response:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS, result = str(response))
+        else:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+
+def __format_zcl_arguments_from_dict(optional_args: dict, command: dict) -> Dict[str, Any]:
+    formatted_command_args = {}
+    for key, value in optional_args.items():
+        valueType = command.get(key, None)
+        if valueType == 'int':
+            formatted_command_args[key] = int(value)
+        elif valueType == 'str':
+            formatted_command_args[key] = value
+        elif valueType == 'bytes':
+            formatted_command_args[key] = ParseEncodedString(value)
+    return formatted_command_args
+
+
+def zcl_read_attribute(
+        cluster: str,
+        attribute: str,
+        node_id: int,
+        endpoint_id: Optional[int] = 0,
+        group_id: Optional[int] = 0) -> Dict[str, Any]:
+    """Generic RPC call to read ZCL cluster attributes.
+    zclread command format: zclread <Cluster> <Attribute> <NodeId>
+        <EndpointId> <GroupId> [arguments]
+
+    Args:
+        cluster: Name of cluster.
+        attribute: cluster attribute for which value is to be read.
+        node_id: node_id assigned to the DUT.
+        endpoint_id: endpoint id.
+        group_ip: group id.
+
+    Raises:
+        exceptions.UnknownCommand: when incorrect cluster and/or command passed.
+
+    Returns:
+        Dict[str, Any]: Dictionary of RPC response for ZCL read containing
+        attribute value in result key.
+    """
+    try:
+        response = device_manager.devCtrl.ZCLReadAttribute(
+                cluster=cluster,
+                attribute=attribute,
+                nodeid=node_id,
+                endpoint=endpoint_id,
+                groupid=group_id,
+                blocking=True)
+        if response.status:
+            return __get_response_dict(status = StatusCodeEnum.FAILED)
+        if response:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS,
+                    result = str(response.value))
+        else:
+            return __get_response_dict(status = StatusCodeEnum.SUCCESS)
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error = str(e))
+    
+
+def zcl_add_network(node_id: int,
+                    arguments: Dict[Text, Text],
+                    endpoint_id: int = 1,
+                    group_id: int = 0,
+                    breadcrumb: int = 0,
+                    timeout_ms: int = 1000) -> Dict[Text, Any]:
+    """
+    Method to send AddWifiNetwork or AddThreadNetwork zcl command.
+    Args:
+        node_id (Text): node id assigned to the DUT
+        arguments (Dict[Text, Text]): parameters provided to the zcl command, ssid and password if WiFi or
+        operationalDataset if Thread network
+        endpoint_id (int): cluster endpoint
+        group_id (int): group id assigned to the DUT
+        breadcrumb (int): commissioner-specific small payload
+        timeout_ms (int): time waiting to zcl response in milliseconds
+
+    Returns:
+        Dict[str, Any]: Dictionary of RPC response for ZCL cluster command
+    """
+    try:
+        __check_supported_os()
+        parameters = {}
+        if arguments.get("ssid") and arguments.get("password"):
+            parameters['ssid'] = arguments.get("ssid").encode("utf-8") + b'\x00'
+            parameters['credentials'] = arguments.get("password").encode("utf-8") + b'\x00'
+            command = "AddWifiNetwork"
+        elif arguments.get("operationalDataset"):
+            parameters['operationalDataset'] = bytes.fromhex(arguments.get("operationalDataset"))
+            command = "AddThreadNetwork"
+        else:
+            raise Exception("(ssid and password) or dataset need to be provided.")
+        parameters['breadcrumb'] = breadcrumb
+        parameters['timeoutMs'] = timeout_ms
+        error, result = device_manager.devCtrl.ZCLSend("NetworkCommissioning",
+                                                       command,
+                                                       node_id,
+                                                       endpoint_id,
+                                                       group_id,
+                                                       parameters,
+                                                       blocking=True)
+        if error != 0:
+            return __get_response_dict(status=StatusCodeEnum.FAILED)
+        elif result is not None:
+            return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=str(result))
+        else:
+            return __get_response_dict(status=StatusCodeEnum.SUCCESS)
+
+    except Exception as e:
+        return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
+
+
+def zcl_enable_network(node_id: int,
+                       arguments: Dict[Text, Text],
+                       endpoint_id: Optional[int] = 1,
+                       group_id: Optional[int] = 0,
+                       breadcrumb: Optional[int] = 0,
+                       timeout_ms: Optional[int] = 1000) -> Dict[Text, Any]:
+    """
+    Method to send EnableNetwork zcl command.
+    Args:
+        node_id (Text): node id assigned to the DUT
+        arguments (Dict[Text, Text]): parameters provided to the zcl command, ssid  WiFi or extpanid if Thread network
+        endpoint_id (int): cluster endpoint
+        group_id (int): group id assigned to the DUT
+        breadcrumb (int): commissioner-specific small payload
+        timeout_ms (int): time waiting to zcl response in milliseconds
+
+    Returns:
+        Dict[str, Any]: Dictionary of RPC response for ZCL cluster command
+    """
+    try:
+        __check_supported_os()
+        parameters = {}
+        if arguments.get("ssid"):
+            parameters['networkID'] = arguments.get("ssid").encode("utf-8") + b'\x00'
+        elif arguments.get("extpanid"):
+            parameters['networkID'] = bytes.fromhex(arguments.get("extpanid"))
+        else:
+            raise Exception("ssid or extpanid need to be provided.")
+        parameters['breadcrumb'] = breadcrumb
+        parameters['timeoutMs'] = timeout_ms
+
+        error, result = device_manager.devCtrl.ZCLSend("NetworkCommissioning",
+                                                       "EnableNetwork",
+                                                       node_id,
+                                                       endpoint_id,
+                                                       group_id,
+                                                       parameters,
+                                                       blocking=True)
+        if error != 0:
+            return __get_response_dict(status=StatusCodeEnum.FAILED)
+        else:
+            return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=str(result))
+    except Exception as e:
+        return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
+
+
+def ble_scan():
+    try:
+        __check_supported_os()
+        device_manager.do_blescan("")
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=__get_peripheral_list())
+    except Exception as e:
+        return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
+
+def __get_peripheral_list() -> Dict[Any, Any]:
+    device_list = []
+    for device in device_manager.bleMgr.peripheral_list:
+        device_detail = {}       
+        devIdInfo = device_manager.bleMgr.get_peripheral_devIdInfo(device)
+        if devIdInfo != None:
+            device_detail['name'] = str(device.Name)
+            device_detail['id'] = str(device.device_id)
+            device_detail['rssi'] = str(device.RSSI)
+            device_detail['address'] = str(device.Address)
+            device_detail['pairing_state'] = devIdInfo.pairingState
+            device_detail['discriminator'] = devIdInfo.discriminator
+            device_detail['vendor_id'] = devIdInfo.vendorId
+            device_detail['product_id'] = devIdInfo.productId
+            if device.ServiceData:
+                for advuuid in device.ServiceData:
+                    device_detail['adv_uuid'] = str(advuuid)
+            device_list.append(device_detail)
+    return device_list
+
+def ble_connect(discriminator: int, pin_code: int, node_id: int) -> Dict[str, Any]:
+    try:
+        __check_supported_os()
+        device_manager.devCtrl.ConnectBLE(discriminator, pin_code, node_id)
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS)
+    except Exception as e:
+        return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
+
+def ip_connect(ip_address: string, pin_code: int, node_id: int) -> Dict[str, Any]:
+    try:
+        __check_supported_os()
+        device_manager.devCtrl.ConnectIP(ip_address.encode("utf-8"), pin_code, node_id)
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS)
+    except Exception as e:
+        return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
+
+def qr_code_parse(qr_code):
+    try:
+        result = SetupPayload().ParseQrCode(qr_code).Dictionary()
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=result)
+    except Exception as e:
+         return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
+
+def pin_code_parse(pin_code):
+    try:
+        result = SetupPayload().ParseManualPairingCode(pin_code).Dictionary()
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=result)
+    except Exception as e:
+         return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
+
+def get_fabric_id():
+    try:
+        fabricID = device_manager.devCtrl.GetFabricId()
+        if fabricID == 0:
+            return __get_response_dict(status=StatusCodeEnum.FAILED, error="Fabric ID not created or encountered an error")
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=fabricID)
+    except Exception as e:
+         return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
+
+def ble_close():
+    try:
+        __check_supported_os()
+        device_manager.devCtrl.CloseBLEConnection()
+        return __get_response_dict(status=StatusCodeEnum.SUCCESS, result=str(0))
+    except Exception as e:
+        return __get_response_dict(status=StatusCodeEnum.FAILED, error=str(e))
+
+def get_pase_data() -> Dict[Any, Any]:
+    """
+    This method will return valid data only after the ble_connect, ip_connect method has been called
+    """
+    try:
+        __check_supported_os()
+        pase_data = device_manager.devCtrl.GetPASEData()
+        return __get_response_dict(status = StatusCodeEnum.SUCCESS, result=pase_data)
+    except Exception as e:
+        return __get_response_dict(status = StatusCodeEnum.FAILED, error=str(e))
+
+def start_rpc_server():
+    with SimpleXMLRPCServer(("0.0.0.0", 5000), allow_none=True) as server:
+        server.register_function(echo_alive)
+        server.register_function(ble_scan)
+        server.register_function(resolve)
+        server.register_function(ble_connect)
+        server.register_function(ip_connect)
+        server.register_function(zcl_command)
+        server.register_function(zcl_add_network)
+        server.register_function(zcl_read_attribute)
+        server.register_function(zcl_enable_network)
+        server.register_function(qr_code_parse)
+        server.register_function(get_pase_data)
+        server.register_function(get_fabric_id)
+        server.register_function(pin_code_parse)
+        server.register_multicall_functions()
+        server.register_function(ble_close)
+        server.register_introspection_functions()
+        print('Serving XML-RPC on localhost port 5000')
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            print("\nKeyboard interrupt received, exiting.")
+            sys.exit(0)
+
+def __get_response_dict(status: StatusCodeEnum, result: Optional[Dict[Any, Any]] = None, error:Optional[str] = None) -> Dict [str, Any]:
+    return { RPCResponseKeyEnum.STATUS.value : status.value, RPCResponseKeyEnum.RESULT.value : result, RPCResponseKeyEnum.ERROR.value : error }
+
+def __check_supported_os()-> bool:
+    if platform.system().lower() == 'darwin':
+        raise Exception(platform.system() + " not supported")
+    elif sys.platform.lower().startswith('linux'):
+        return True
+
+    raise Exception("OS Not Supported")
+######--------------------------------------------------######
 
 def main():
+    start_rpc_server()
+
+    # Never Executed: does not return here
     optParser = OptionParser()
     optParser.add_option(
         "-r",

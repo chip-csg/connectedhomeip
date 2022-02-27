@@ -26,19 +26,18 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
+import chip.setuppayload.SetupPayload
+import chip.setuppayload.SetupPayloadParser
 import chip.setuppayload.SetupPayloadParser.UnrecognizedQrCodeException
 import com.google.chip.chiptool.attestation.AttestationTestFragment
 import com.google.chip.chiptool.clusterclient.OnOffClientFragment
+import com.google.chip.chiptool.clusterclient.SensorClientFragment
 import com.google.chip.chiptool.echoclient.EchoClientFragment
 import com.google.chip.chiptool.provisioning.DeviceProvisioningFragment
 import com.google.chip.chiptool.provisioning.ProvisionNetworkType
 import com.google.chip.chiptool.setuppayloadscanner.BarcodeFragment
 import com.google.chip.chiptool.setuppayloadscanner.CHIPDeviceDetailsFragment
 import com.google.chip.chiptool.setuppayloadscanner.CHIPDeviceInfo
-import com.google.chip.chiptool.setuppayloadscanner.QrCodeInfo
-import chip.devicecontroller.KeyValueStoreManager
-import chip.setuppayload.SetupPayload
-import chip.setuppayload.SetupPayloadParser
 
 class CHIPToolActivity :
     AppCompatActivity(),
@@ -51,8 +50,6 @@ class CHIPToolActivity :
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContentView(R.layout.top_activity)
-
-    KeyValueStoreManager.initialize(this);
 
     if (savedInstanceState == null) {
       val fragment = SelectActionFragment.newInstance()
@@ -113,6 +110,10 @@ class CHIPToolActivity :
     showFragment(OnOffClientFragment.newInstance())
   }
 
+  override fun handleSensorClicked() {
+    showFragment(SensorClientFragment.newInstance())
+  }
+
   override fun handleAttestationTestClicked() {
     showFragment(AttestationTestFragment.newInstance())
   }
@@ -160,14 +161,7 @@ class CHIPToolActivity :
       return
     }
 
-    val deviceInfo = CHIPDeviceInfo(
-        setupPayload.version,
-        setupPayload.vendorId,
-        setupPayload.productId,
-        setupPayload.discriminator,
-        setupPayload.setupPinCode,
-        setupPayload.optionalQRCodeInfo.mapValues { (_, info) -> QrCodeInfo(info.tag, info.type, info.data, info.int32) }
-    )
+    val deviceInfo = CHIPDeviceInfo.fromSetupPayload(setupPayload)
 
     val buttons = arrayOf(
         getString(R.string.nfc_tag_action_show),

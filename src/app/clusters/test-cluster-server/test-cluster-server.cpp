@@ -20,12 +20,13 @@
  * @brief Implementation for the Test Server Cluster
  ***************************************************************************/
 
-#include <app/Command.h>
+#include <app/CommandHandler.h>
 #include <app/common/gen/af-structs.h>
 #include <app/common/gen/attribute-id.h>
 #include <app/common/gen/attribute-type.h>
 #include <app/common/gen/cluster-id.h>
 #include <app/common/gen/command-id.h>
+#include <app/common/gen/ids/Commands.h>
 #include <app/util/af.h>
 #include <app/util/attribute-storage.h>
 #include <core/CHIPSafeCasts.h>
@@ -33,11 +34,12 @@
 #include <support/logging/CHIPLogging.h>
 
 using namespace chip;
+using namespace chip::app::Clusters::TestCluster;
 
 constexpr const char * kErrorStr = "Test Cluster: List Octet cluster (0x%02x) Error setting '%s' attribute: 0x%02x";
 
 namespace {
-EmberAfStatus writeAttribute(uint8_t endpoint, AttributeId attributeId, uint8_t * buffer, int32_t index = -1)
+EmberAfStatus writeAttribute(EndpointId endpoint, AttributeId attributeId, uint8_t * buffer, int32_t index = -1)
 {
     EmberAfAttributeSearchRecord record;
     record.endpoint         = endpoint;
@@ -57,14 +59,31 @@ EmberAfStatus writeAttribute(uint8_t endpoint, AttributeId attributeId, uint8_t 
     return emAfReadOrWriteAttribute(&record, NULL, buffer, 0, true, index + 1);
 }
 
-EmberAfStatus writeTestListOctetAttribute(uint8_t endpoint)
+EmberAfStatus writeTestListInt8uAttribute(EndpointId endpoint)
+{
+    EmberAfStatus status    = EMBER_ZCL_STATUS_SUCCESS;
+    AttributeId attributeId = ZCL_LIST_ATTRIBUTE_ID;
+
+    uint16_t attributeCount = 4;
+    for (uint8_t index = 0; index < attributeCount; index++)
+    {
+        status = writeAttribute(endpoint, attributeId, (uint8_t *) &index, index);
+        VerifyOrReturnError(status == EMBER_ZCL_STATUS_SUCCESS, status);
+    }
+
+    status = writeAttribute(endpoint, attributeId, (uint8_t *) &attributeCount);
+    VerifyOrReturnError(status == EMBER_ZCL_STATUS_SUCCESS, status);
+    return status;
+}
+
+EmberAfStatus writeTestListOctetAttribute(EndpointId endpoint)
 {
     EmberAfStatus status    = EMBER_ZCL_STATUS_SUCCESS;
     AttributeId attributeId = ZCL_LIST_OCTET_STRING_ATTRIBUTE_ID;
 
     uint16_t attributeCount = 4;
     char data[6]            = { 'T', 'e', 's', 't', 'N', '\0' };
-    chip::ByteSpan span     = chip::ByteSpan(Uint8::from_char(data), strlen(data));
+    ByteSpan span           = ByteSpan(Uint8::from_char(data), strlen(data));
 
     for (uint8_t index = 0; index < attributeCount; index++)
     {
@@ -79,14 +98,14 @@ EmberAfStatus writeTestListOctetAttribute(uint8_t endpoint)
     return status;
 }
 
-EmberAfStatus writeTestListStructOctetAttribute(uint8_t endpoint)
+EmberAfStatus writeTestListStructOctetAttribute(EndpointId endpoint)
 {
     EmberAfStatus status    = EMBER_ZCL_STATUS_SUCCESS;
     AttributeId attributeId = ZCL_LIST_STRUCT_OCTET_STRING_ATTRIBUTE_ID;
 
     uint16_t attributeCount = 4;
     char data[6]            = { 'T', 'e', 's', 't', 'N', '\0' };
-    chip::ByteSpan span     = chip::ByteSpan(Uint8::from_char(data), strlen(data));
+    ByteSpan span           = ByteSpan(Uint8::from_char(data), strlen(data));
 
     for (uint8_t index = 0; index < attributeCount; index++)
     {
@@ -118,6 +137,9 @@ void emberAfPluginTestClusterServerInitCallback(void)
             continue;
         }
 
+        status = writeTestListInt8uAttribute(endpoint);
+        VerifyOrReturn(status == EMBER_ZCL_STATUS_SUCCESS, ChipLogError(Zcl, kErrorStr, endpoint, "test list int8u", status));
+
         status = writeTestListOctetAttribute(endpoint);
         VerifyOrReturn(status == EMBER_ZCL_STATUS_SUCCESS, ChipLogError(Zcl, kErrorStr, endpoint, "test list octet", status));
 
@@ -126,19 +148,18 @@ void emberAfPluginTestClusterServerInitCallback(void)
     }
 }
 
-bool emberAfTestClusterClusterTestCallback(chip::app::Command *)
+bool emberAfTestClusterClusterTestCallback(EndpointId endpoint, app::CommandHandler *)
 {
     emberAfSendImmediateDefaultResponse(EMBER_ZCL_STATUS_SUCCESS);
     return true;
 }
 
-bool emberAfTestClusterClusterTestSpecificCallback(chip::app::Command * apCommandObj)
+bool sendNumericResponse(EndpointId endpoint, app::CommandHandler * apCommandObj, CommandId responseCommand, uint8_t returnValue)
 {
-    CHIP_ERROR err      = CHIP_NO_ERROR;
-    uint8_t returnValue = 7;
+    CHIP_ERROR err = CHIP_NO_ERROR;
 
-    app::CommandPathParams cmdParams = { emberAfCurrentEndpoint(), /* group id */ 0, ZCL_TEST_CLUSTER_ID,
-                                         ZCL_TEST_SPECIFIC_RESPONSE_COMMAND_ID, (chip::app::CommandPathFlags::kEndpointIdValid) };
+    app::CommandPathParams cmdParams = { endpoint, /* group id */ 0, ZCL_TEST_CLUSTER_ID, responseCommand,
+                                         (app::CommandPathFlags::kEndpointIdValid) };
     TLV::TLVWriter * writer          = nullptr;
 
     VerifyOrExit(apCommandObj != nullptr, err = CHIP_ERROR_INCORRECT_STATE);
@@ -151,12 +172,28 @@ bool emberAfTestClusterClusterTestSpecificCallback(chip::app::Command * apComman
 exit:
     if (CHIP_NO_ERROR != err)
     {
-        ChipLogError(Zcl, "Test Cluster: failed to send TestSpecific response: %x", err);
+        ChipLogError(Zcl, "Test Cluster: failed to send TestSpecific response: %" CHIP_ERROR_FORMAT, err.Format());
     }
     return true;
 }
 
-bool emberAfTestClusterClusterTestNotHandledCallback(chip::app::Command *)
+bool emberAfTestClusterClusterTestSpecificCallback(EndpointId endpoint, app::CommandHandler * apCommandObj)
+{
+    return sendNumericResponse(endpoint, apCommandObj, Commands::Ids::TestSpecificResponse, 7);
+}
+
+bool emberAfTestClusterClusterTestNotHandledCallback(EndpointId endpoint, app::CommandHandler *)
 {
     return false;
+}
+
+bool emberAfTestClusterClusterTestAddArgumentsCallback(EndpointId endpoint, app::CommandHandler * apCommandObj, uint8_t arg1,
+                                                       uint8_t arg2)
+{
+    if (arg1 > UINT8_MAX - arg2)
+    {
+        return emberAfSendImmediateDefaultResponse(EMBER_ZCL_STATUS_INVALID_ARGUMENT);
+    }
+
+    return sendNumericResponse(endpoint, apCommandObj, Commands::Ids::TestAddArgumentsResponse, static_cast<uint8_t>(arg1 + arg2));
 }

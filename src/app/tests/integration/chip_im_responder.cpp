@@ -51,9 +51,8 @@ bool ServerClusterCommandExists(chip::ClusterId aClusterId, chip::CommandId aCom
 }
 
 void DispatchSingleClusterCommand(chip::ClusterId aClusterId, chip::CommandId aCommandId, chip::EndpointId aEndPointId,
-                                  chip::TLV::TLVReader & aReader, Command * apCommandObj)
+                                  chip::TLV::TLVReader & aReader, CommandHandler * apCommandObj)
 {
-    CHIP_ERROR err                = CHIP_NO_ERROR;
     static bool statusCodeFlipper = false;
 
     if (aClusterId != kTestClusterId || aCommandId != kTestCommandId || aEndPointId != kTestEndpointId)
@@ -85,43 +84,56 @@ void DispatchSingleClusterCommand(chip::ClusterId aClusterId, chip::CommandId aC
 
         chip::TLV::TLVWriter * writer;
 
-        err = apCommandObj->PrepareCommand(commandPathParams);
-        SuccessOrExit(err);
+        ReturnOnFailure(apCommandObj->PrepareCommand(commandPathParams));
 
         writer = apCommandObj->GetCommandDataElementTLVWriter();
-        err    = writer->Put(chip::TLV::ContextTag(kTestFieldId1), kTestFieldValue1);
-        SuccessOrExit(err);
+        ReturnOnFailure(writer->Put(chip::TLV::ContextTag(kTestFieldId1), kTestFieldValue1));
 
-        err = writer->Put(chip::TLV::ContextTag(kTestFieldId2), kTestFieldValue2);
-        SuccessOrExit(err);
+        ReturnOnFailure(writer->Put(chip::TLV::ContextTag(kTestFieldId2), kTestFieldValue2));
 
-        err = apCommandObj->FinishCommand();
-        SuccessOrExit(err);
+        ReturnOnFailure(apCommandObj->FinishCommand());
     }
     statusCodeFlipper = !statusCodeFlipper;
-
-exit:
-    return;
 }
 
-CHIP_ERROR ReadSingleClusterData(ClusterInfo & aClusterInfo, TLV::TLVWriter & aWriter)
+void DispatchSingleClusterResponseCommand(chip::ClusterId aClusterId, chip::CommandId aCommandId, chip::EndpointId aEndPointId,
+                                          chip::TLV::TLVReader & aReader, CommandSender * apCommandObj)
 {
-    CHIP_ERROR err = CHIP_NO_ERROR;
+    ChipLogDetail(Controller, "Received Cluster Command: Cluster=%" PRIx32 " Command=%" PRIx32 " Endpoint=%" PRIx16, aClusterId,
+                  aCommandId, aEndPointId);
+    // Nothing todo.
+}
+
+CHIP_ERROR ReadSingleClusterData(ClusterInfo & aClusterInfo, TLV::TLVWriter * apWriter, bool * apDataExists)
+{
+    CHIP_ERROR err   = CHIP_NO_ERROR;
+    uint64_t version = 0;
     VerifyOrExit(aClusterInfo.mClusterId == kTestClusterId && aClusterInfo.mEndpointId == kTestEndpointId,
                  err = CHIP_ERROR_INVALID_ARGUMENT);
+    VerifyOrExit(apWriter != nullptr, /* no op */);
 
-    if (aClusterInfo.mFieldId == kRootFieldId || aClusterInfo.mFieldId == 1)
-    {
-        err = aWriter.Put(TLV::ContextTag(kTestFieldId1), kTestFieldValue1);
-        SuccessOrExit(err);
-    }
-    if (aClusterInfo.mFieldId == kRootFieldId || aClusterInfo.mFieldId == 2)
-    {
-        err = aWriter.Put(TLV::ContextTag(kTestFieldId2), kTestFieldValue2);
-        SuccessOrExit(err);
-    }
+    err = apWriter->Put(TLV::ContextTag(AttributeDataElement::kCsTag_Data), kTestFieldValue1);
+    SuccessOrExit(err);
+    err = apWriter->Put(TLV::ContextTag(AttributeDataElement::kCsTag_DataVersion), version);
 
 exit:
+    ChipLogFunctError(err);
+    return err;
+}
+
+CHIP_ERROR WriteSingleClusterData(ClusterInfo & aClusterInfo, TLV::TLVReader & aReader, WriteHandler * apWriteHandler)
+{
+    CHIP_ERROR err = CHIP_NO_ERROR;
+    AttributePathParams attributePathParams;
+    attributePathParams.mNodeId     = 1;
+    attributePathParams.mEndpointId = 2;
+    attributePathParams.mClusterId  = 3;
+    attributePathParams.mFieldId    = 4;
+    attributePathParams.mListIndex  = 5;
+    attributePathParams.mFlags.Set(AttributePathParams::Flags::kFieldIdValid);
+
+    err = apWriteHandler->AddAttributeStatusCode(attributePathParams, Protocols::SecureChannel::GeneralStatusCode::kSuccess,
+                                                 Protocols::SecureChannel::Id, Protocols::InteractionModel::ProtocolCode::Success);
     ChipLogFunctError(err);
     return err;
 }
@@ -156,11 +168,8 @@ int main(int argc, char * argv[])
     CHIP_ERROR err = CHIP_NO_ERROR;
     chip::app::InteractionModelDelegate mockDelegate;
     chip::Optional<chip::Transport::PeerAddress> peer(chip::Transport::Type::kUndefined);
-    const chip::Transport::AdminId gAdminId = 0;
-    chip::Transport::AdminPairingTable admins;
-    chip::Transport::AdminPairingInfo * adminInfo = admins.AssignAdminId(gAdminId, chip::kTestDeviceNodeId);
-
-    VerifyOrExit(adminInfo != nullptr, err = CHIP_ERROR_NO_MEMORY);
+    const chip::FabricIndex gFabricIndex = 0;
+    chip::Transport::FabricTable fabrics;
 
     InitializeChip();
 
@@ -168,8 +177,7 @@ int main(int argc, char * argv[])
         chip::Transport::UdpListenParameters(&chip::DeviceLayer::InetLayer).SetAddressType(chip::Inet::kIPAddressType_IPv4));
     SuccessOrExit(err);
 
-    err = gSessionManager.Init(chip::kTestDeviceNodeId, &chip::DeviceLayer::SystemLayer, &gTransportManager, &admins,
-                               &gMessageCounterManager);
+    err = gSessionManager.Init(&chip::DeviceLayer::SystemLayer, &gTransportManager, &fabrics, &gMessageCounterManager);
     SuccessOrExit(err);
 
     err = gExchangeManager.Init(&gSessionManager);
@@ -184,7 +192,7 @@ int main(int argc, char * argv[])
     InitializeEventLogging(&gExchangeManager);
 
     err = gSessionManager.NewPairing(peer, chip::kTestControllerNodeId, &gTestPairing, chip::SecureSession::SessionRole::kResponder,
-                                     gAdminId);
+                                     gFabricIndex);
     SuccessOrExit(err);
 
     printf("Listening for IM requests...\n");

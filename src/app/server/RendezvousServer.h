@@ -22,20 +22,25 @@
 #include <messaging/ExchangeMgr.h>
 #include <platform/CHIPDeviceLayer.h>
 #include <protocols/secure_channel/RendezvousParameters.h>
+#include <protocols/secure_channel/SessionIDAllocator.h>
 
 namespace chip {
 
 class RendezvousServer : public SessionEstablishmentDelegate
 {
 public:
-    CHIP_ERROR WaitForPairing(const RendezvousParameters & params, Messaging::ExchangeManager * exchangeManager,
-                              TransportMgrBase * transportMgr, SecureSessionMgr * sessionMgr, Transport::AdminPairingInfo * admin);
+    CHIP_ERROR WaitForPairing(const RendezvousParameters & params, uint32_t pbkdf2IterCount, const ByteSpan & salt,
+                              uint16_t passcodeID, Messaging::ExchangeManager * exchangeManager, TransportMgrBase * transportMgr,
+                              SecureSessionMgr * sessionMgr);
 
-    CHIP_ERROR Init(AppDelegate * delegate, PersistentStorageDelegate * storage)
+    CHIP_ERROR Init(AppDelegate * delegate, SessionIDAllocator * idAllocator)
     {
-        VerifyOrReturnError(storage != nullptr, CHIP_ERROR_INVALID_ARGUMENT);
+        VerifyOrReturnError(idAllocator != nullptr, CHIP_ERROR_INVALID_ARGUMENT);
+        mIDAllocator = idAllocator;
+
+        // The caller may chose to not provide a delegate object. The RendezvousServer checks for null delegate before calling
+        // its methods.
         mDelegate = delegate;
-        mStorage  = storage;
         return CHIP_NO_ERROR;
     }
 
@@ -45,20 +50,16 @@ public:
 
     void Cleanup();
 
-    uint16_t GetNextKeyId() const { return mNextKeyId; }
-    void SetNextKeyId(uint16_t id) { mNextKeyId = id; }
     void OnPlatformEvent(const DeviceLayer::ChipDeviceEvent * event);
 
 private:
     AppDelegate * mDelegate;
-    PersistentStorageDelegate * mStorage          = nullptr;
     Messaging::ExchangeManager * mExchangeManager = nullptr;
 
     PASESession mPairingSession;
-    uint16_t mNextKeyId            = 0;
     SecureSessionMgr * mSessionMgr = nullptr;
 
-    Transport::AdminPairingInfo * mAdmin = nullptr;
+    SessionIDAllocator * mIDAllocator = nullptr;
 
     const RendezvousAdvertisementDelegate * mAdvDelegate;
 

@@ -37,7 +37,7 @@ static constexpr chip::ClusterId ZCL_GROUPS_CLUSTER_ID = 0x0004;
 // Definitions for cluster: Scenes
 static constexpr chip::ClusterId ZCL_SCENES_CLUSTER_ID = 0x0005;
 
-// Definitions for cluster: On/off
+// Definitions for cluster: On/Off
 static constexpr chip::ClusterId ZCL_ON_OFF_CLUSTER_ID = 0x0006;
 
 // Definitions for cluster: On/off Switch Configuration
@@ -52,20 +52,8 @@ static constexpr chip::ClusterId ZCL_ALARM_CLUSTER_ID = 0x0009;
 // Definitions for cluster: Time
 static constexpr chip::ClusterId ZCL_TIME_CLUSTER_ID = 0x000A;
 
-// Definitions for cluster: RSSI Location
-static constexpr chip::ClusterId ZCL_RSSI_LOCATION_CLUSTER_ID = 0x000B;
-
 // Definitions for cluster: Binary Input (Basic)
 static constexpr chip::ClusterId ZCL_BINARY_INPUT_BASIC_CLUSTER_ID = 0x000F;
-
-// Definitions for cluster: Commissioning
-static constexpr chip::ClusterId ZCL_COMMISSIONING_CLUSTER_ID = 0x0015;
-
-// Definitions for cluster: Partition
-static constexpr chip::ClusterId ZCL_PARTITION_CLUSTER_ID = 0x0016;
-
-// Definitions for cluster: Over the Air Bootloading
-static constexpr chip::ClusterId ZCL_OTA_BOOTLOAD_CLUSTER_ID = 0x0019;
 
 // Definitions for cluster: Power Profile
 static constexpr chip::ClusterId ZCL_POWER_PROFILE_CLUSTER_ID = 0x001A;
@@ -79,26 +67,23 @@ static constexpr chip::ClusterId ZCL_DESCRIPTOR_CLUSTER_ID = 0x001D;
 // Definitions for cluster: Poll Control
 static constexpr chip::ClusterId ZCL_POLL_CONTROL_CLUSTER_ID = 0x0020;
 
-// Definitions for cluster: Green Power
-static constexpr chip::ClusterId ZCL_GREEN_POWER_CLUSTER_ID = 0x0021;
-
-// Definitions for cluster: Keep-Alive
-static constexpr chip::ClusterId ZCL_KEEPALIVE_CLUSTER_ID = 0x0025;
-
 // Definitions for cluster: Basic
 static constexpr chip::ClusterId ZCL_BASIC_CLUSTER_ID = 0x0028;
 
-// Definitions for cluster: OTA Software Update Server
-static constexpr chip::ClusterId ZCL_OTA_SERVER_CLUSTER_ID = 0x0029;
+// Definitions for cluster: OTA Software Update Provider
+static constexpr chip::ClusterId ZCL_OTA_PROVIDER_CLUSTER_ID = 0x0029;
 
-// Definitions for cluster: OTA Software Update Client
-static constexpr chip::ClusterId ZCL_OTA_CLIENT_CLUSTER_ID = 0x002A;
+// Definitions for cluster: OTA Software Update Requestor
+static constexpr chip::ClusterId ZCL_OTA_REQUESTOR_CLUSTER_ID = 0x002A;
 
 // Definitions for cluster: General Commissioning
 static constexpr chip::ClusterId ZCL_GENERAL_COMMISSIONING_CLUSTER_ID = 0x0030;
 
 // Definitions for cluster: Network Commissioning
 static constexpr chip::ClusterId ZCL_NETWORK_COMMISSIONING_CLUSTER_ID = 0x0031;
+
+// Definitions for cluster: Diagnostic Logs
+static constexpr chip::ClusterId ZCL_DIAGNOSTIC_LOGS_CLUSTER_ID = 0x0032;
 
 // Definitions for cluster: General Diagnostics
 static constexpr chip::ClusterId ZCL_GENERAL_DIAGNOSTICS_CLUSTER_ID = 0x0033;
@@ -120,6 +105,9 @@ static constexpr chip::ClusterId ZCL_BRIDGED_DEVICE_BASIC_CLUSTER_ID = 0x0039;
 
 // Definitions for cluster: Switch
 static constexpr chip::ClusterId ZCL_SWITCH_CLUSTER_ID = 0x003B;
+
+// Definitions for cluster: AdministratorCommissioning
+static constexpr chip::ClusterId ZCL_ADMINISTRATOR_COMMISSIONING_CLUSTER_ID = 0x003C;
 
 // Definitions for cluster: Operational Credentials
 static constexpr chip::ClusterId ZCL_OPERATIONAL_CREDENTIALS_CLUSTER_ID = 0x003E;
@@ -301,7 +289,7 @@ static constexpr chip::ClusterId ZCL_LOW_POWER_CLUSTER_ID = 0x0508;
 // Definitions for cluster: Keypad Input
 static constexpr chip::ClusterId ZCL_KEYPAD_INPUT_CLUSTER_ID = 0x0509;
 
-// Definitions for cluster: Content Launch
+// Definitions for cluster: Content Launcher
 static constexpr chip::ClusterId ZCL_CONTENT_LAUNCH_CLUSTER_ID = 0x050A;
 
 // Definitions for cluster: Audio Output
@@ -319,80 +307,8 @@ static constexpr chip::ClusterId ZCL_ACCOUNT_LOGIN_CLUSTER_ID = 0x050E;
 // Definitions for cluster: Test Cluster
 static constexpr chip::ClusterId ZCL_TEST_CLUSTER_ID = 0x050F;
 
-// Definitions for cluster: Generic Tunnel
-static constexpr chip::ClusterId ZCL_GENERIC_TUNNEL_CLUSTER_ID = 0x0600;
-
-// Definitions for cluster: BACnet Protocol Tunnel
-static constexpr chip::ClusterId ZCL_BACNET_PROTOCOL_TUNNEL_CLUSTER_ID = 0x0601;
-
-// Definitions for cluster: 11073 Protocol Tunnel
-static constexpr chip::ClusterId ZCL_11073_PROTOCOL_TUNNEL_CLUSTER_ID = 0x0614;
-
-// Definitions for cluster: ISO 7816 Protocol Tunnel
-static constexpr chip::ClusterId ZCL_ISO7816_PROTOCOL_TUNNEL_CLUSTER_ID = 0x0615;
-
-// Definitions for cluster: Price
-static constexpr chip::ClusterId ZCL_PRICE_CLUSTER_ID = 0x0700;
-
-// Definitions for cluster: Demand Response and Load Control
-static constexpr chip::ClusterId ZCL_DEMAND_RESPONSE_LOAD_CONTROL_CLUSTER_ID = 0x0701;
-
-// Definitions for cluster: Simple Metering
-static constexpr chip::ClusterId ZCL_SIMPLE_METERING_CLUSTER_ID = 0x0702;
-
 // Definitions for cluster: Messaging
 static constexpr chip::ClusterId ZCL_MESSAGING_CLUSTER_ID = 0x0703;
-
-// Definitions for cluster: Tunneling
-static constexpr chip::ClusterId ZCL_TUNNELING_CLUSTER_ID = 0x0704;
-
-// Definitions for cluster: Prepayment
-static constexpr chip::ClusterId ZCL_PREPAYMENT_CLUSTER_ID = 0x0705;
-
-// Definitions for cluster: Energy Management
-static constexpr chip::ClusterId ZCL_ENERGY_MANAGEMENT_CLUSTER_ID = 0x0706;
-
-// Definitions for cluster: Calendar
-static constexpr chip::ClusterId ZCL_CALENDAR_CLUSTER_ID = 0x0707;
-
-// Definitions for cluster: Device Management
-static constexpr chip::ClusterId ZCL_DEVICE_MANAGEMENT_CLUSTER_ID = 0x0708;
-
-// Definitions for cluster: Events
-static constexpr chip::ClusterId ZCL_EVENTS_CLUSTER_ID = 0x0709;
-
-// Definitions for cluster: MDU Pairing
-static constexpr chip::ClusterId ZCL_MDU_PAIRING_CLUSTER_ID = 0x070A;
-
-// Definitions for cluster: Sub-GHz
-static constexpr chip::ClusterId ZCL_SUB_GHZ_CLUSTER_ID = 0x070B;
-
-// Definitions for cluster: Key Establishment
-static constexpr chip::ClusterId ZCL_KEY_ESTABLISHMENT_CLUSTER_ID = 0x0800;
-
-// Definitions for cluster: Information
-static constexpr chip::ClusterId ZCL_INFORMATION_CLUSTER_ID = 0x0900;
-
-// Definitions for cluster: Data Sharing
-static constexpr chip::ClusterId ZCL_DATA_SHARING_CLUSTER_ID = 0x0901;
-
-// Definitions for cluster: Gaming
-static constexpr chip::ClusterId ZCL_GAMING_CLUSTER_ID = 0x0902;
-
-// Definitions for cluster: Data Rate Control
-static constexpr chip::ClusterId ZCL_DATA_RATE_CONTROL_CLUSTER_ID = 0x0903;
-
-// Definitions for cluster: Voice over ZigBee
-static constexpr chip::ClusterId ZCL_VOICE_OVER_ZIGBEE_CLUSTER_ID = 0x0904;
-
-// Definitions for cluster: Chatting
-static constexpr chip::ClusterId ZCL_CHATTING_CLUSTER_ID = 0x0905;
-
-// Definitions for cluster: Payment
-static constexpr chip::ClusterId ZCL_PAYMENT_CLUSTER_ID = 0x0A01;
-
-// Definitions for cluster: Billing
-static constexpr chip::ClusterId ZCL_BILLING_CLUSTER_ID = 0x0A02;
 
 // Definitions for cluster: Appliance Identification
 static constexpr chip::ClusterId ZCL_APPLIANCE_IDENTIFICATION_CLUSTER_ID = 0x0B00;
@@ -409,12 +325,6 @@ static constexpr chip::ClusterId ZCL_APPLIANCE_STATISTICS_CLUSTER_ID = 0x0B03;
 // Definitions for cluster: Electrical Measurement
 static constexpr chip::ClusterId ZCL_ELECTRICAL_MEASUREMENT_CLUSTER_ID = 0x0B04;
 
-// Definitions for cluster: Diagnostics
-static constexpr chip::ClusterId ZCL_DIAGNOSTICS_CLUSTER_ID = 0x0B05;
-
-// Definitions for cluster: ZLL Commissioning
-static constexpr chip::ClusterId ZCL_ZLL_COMMISSIONING_CLUSTER_ID = 0x1000;
-
 // Definitions for cluster: Binding
 static constexpr chip::ClusterId ZCL_BINDING_CLUSTER_ID = 0xF000;
 
@@ -426,12 +336,3 @@ static constexpr chip::ClusterId ZCL_SAMPLE_MFG_SPECIFIC_CLUSTER_ID = 0xFC00;
 
 // Definitions for cluster: Sample Mfg Specific Cluster 2
 static constexpr chip::ClusterId ZCL_SAMPLE_MFG_SPECIFIC_CLUSTER_2_ID = 0xFC00;
-
-// Definitions for cluster: Configuration Cluster
-static constexpr chip::ClusterId ZCL_OTA_CONFIGURATION_CLUSTER_ID = 0xFC01;
-
-// Definitions for cluster: MFGLIB Cluster
-static constexpr chip::ClusterId ZCL_MFGLIB_CLUSTER_ID = 0xFC02;
-
-// Definitions for cluster: SL Works With All Hubs
-static constexpr chip::ClusterId ZCL_SL_WWAH_CLUSTER_ID = 0xFC57;

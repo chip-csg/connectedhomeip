@@ -18,7 +18,6 @@ static_library("controller") {
   output_name = "libChipController"
 
   sources = [
-    "${chip_root}/src/app/util/CHIPDeviceCallbacksMgr.cpp",
     "AbstractMdnsDiscoveryController.cpp",
     "CHIPCluster.cpp",
     "CHIPCluster.h",
@@ -31,13 +30,13 @@ static_library("controller") {
     "EmptyDataModelHandler.cpp",
     "ExampleOperationalCredentialsIssuer.cpp",
     "ExampleOperationalCredentialsIssuer.h",
-    "data_model/gen/chip-zcl-zpro-codec-api.h",
   ]
 
   cflags = [ "-Wconversion" ]
 
   public_deps = [
     "${chip_root}/src/app",
+    "${chip_root}/src/app/util:device_callbacks_manager",
     "${chip_root}/src/lib/core",
     "${chip_root}/src/lib/mdns",
     "${chip_root}/src/lib/support",

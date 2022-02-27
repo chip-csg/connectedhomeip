@@ -1,6 +1,6 @@
 /*
  *
- *    Copyright (c) 2020 Project CHIP Authors
+ *    Copyright (c) 2020-2021 Project CHIP Authors
  *    Copyright (c) 2016-2017 Nest Labs, Inc.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,20 +31,12 @@
 #include <core/CHIPCallback.h>
 
 #include <support/DLLUtil.h>
+#include <system/SystemClock.h>
 #include <system/SystemError.h>
 #include <system/SystemEvent.h>
 #include <system/SystemObject.h>
-
-// Include dependent headers
-#if CHIP_SYSTEM_CONFIG_USE_SOCKETS
-#include <system/SystemWakeEvent.h>
-
-#include <sys/select.h>
-#endif // CHIP_SYSTEM_CONFIG_USE_SOCKETS
-
-#if CHIP_SYSTEM_CONFIG_POSIX_LOCKING
-#include <pthread.h>
-#endif // CHIP_SYSTEM_CONFIG_POSIX_LOCKING
+#include <system/SystemTimer.h>
+#include <system/WatchableEventManager.h>
 
 #if CHIP_SYSTEM_CONFIG_USE_DISPATCH
 #include <dispatch/dispatch.h>
@@ -55,36 +47,16 @@ namespace System {
 
 class Layer;
 class Timer;
-
-#if CHIP_SYSTEM_CONFIG_USE_LWIP
 class Object;
-#endif // CHIP_SYSTEM_CONFIG_USE_LWIP
 
-namespace Platform {
-namespace Layer {
-
-using ::chip::System::Error;
-using ::chip::System::Layer;
-
-#if CHIP_SYSTEM_CONFIG_USE_LWIP
-using ::chip::System::Object;
-#endif // CHIP_SYSTEM_CONFIG_USE_LWIP
-
-extern Error WillInit(Layer & aLayer, void * aContext);
-extern Error WillShutdown(Layer & aLayer, void * aContext);
-
-extern void DidInit(Layer & aLayer, void * aContext, Error aStatus);
-extern void DidShutdown(Layer & aLayer, void * aContext, Error aStatus);
-
-#if CHIP_SYSTEM_CONFIG_USE_LWIP
-extern Error PostEvent(Layer & aLayer, void * aContext, Object & aTarget, EventType aType, uintptr_t aArgument);
-extern Error DispatchEvents(Layer & aLayer, void * aContext);
-extern Error DispatchEvent(Layer & aLayer, void * aContext, Event aEvent);
-extern Error StartTimer(Layer & aLayer, void * aContext, uint32_t aMilliseconds);
-#endif // CHIP_SYSTEM_CONFIG_USE_LWIP
-
-} // namespace Layer
-} // namespace Platform
+class PlatformEventing
+{
+public:
+    static CHIP_ERROR PostEvent(System::Layer & aLayer, Object & aTarget, EventType aType, uintptr_t aArgument);
+    static CHIP_ERROR DispatchEvents(System::Layer & aLayer);
+    static CHIP_ERROR DispatchEvent(System::Layer & aLayer, Event aEvent);
+    static CHIP_ERROR StartTimer(System::Layer & aLayer, uint32_t aMilliseconds);
+};
 
 /**
  *  @enum LayerState
@@ -97,143 +69,38 @@ enum LayerState
     kLayerState_Initialized    = 1  /**< Initialized state. */
 };
 
-#if CHIP_SYSTEM_CONFIG_USE_LWIP
-typedef Error (*LwIPEventHandlerFunction)(Object & aTarget, EventType aEventType, uintptr_t aArgument);
-
-class LwIPEventHandlerDelegate
-{
-    friend class Layer;
-
-public:
-    bool IsInitialized(void) const;
-    void Init(LwIPEventHandlerFunction aFunction);
-    void Prepend(const LwIPEventHandlerDelegate *& aDelegateList);
-
-private:
-    LwIPEventHandlerFunction mFunction;
-    const LwIPEventHandlerDelegate * mNextDelegate;
-};
-#endif // CHIP_SYSTEM_CONFIG_USE_LWIP
-
 /**
- *  @class Layer
- *
- *  @brief
- *      This provides access to timers according to the configured event handling model.
- *
- *      For \c CHIP_SYSTEM_CONFIG_USE_SOCKETS, event readiness notification is handled via traditional poll/select implementation on
- *      the platform adaptation.
- *
- *      For \c CHIP_SYSTEM_CONFIG_USE_LWIP, event readiness notification is handle via events / messages and platform- and
- *      system-specific hooks for the event/message system.
+ * This provides access to timers according to the configured event handling model.
  */
 class DLL_EXPORT Layer
 {
 public:
     Layer();
 
-    Error Init(void * aContext);
-    Error Shutdown();
+    CHIP_ERROR Init();
 
-    void * GetPlatformData() const;
-    void SetPlatformData(void * aPlatformData);
+    // Some other layers hold pointers to System::Layer, so care must be taken
+    // to ensure that they are not used after calling Shutdown().
+    CHIP_ERROR Shutdown();
 
-    LayerState State() const;
+    LayerState State() const { return mLayerState; }
 
-    Error NewTimer(Timer *& aTimerPtr);
+    CHIP_ERROR StartTimer(uint32_t aMilliseconds, Timers::OnCompleteFunct aComplete, void * aAppState);
+    void CancelTimer(Timers::OnCompleteFunct aOnComplete, void * aAppState);
+    CHIP_ERROR ScheduleWork(Timers::OnCompleteFunct aComplete, void * aAppState);
+    WatchableEventManager & WatchableEventsManager() { return mWatchableEventsManager; }
 
-    void StartTimer(uint32_t aMilliseconds, chip::Callback::Callback<> * aCallback);
-    void DispatchTimerCallbacks(uint64_t kCurrentEpoch);
-
-    typedef void (*TimerCompleteFunct)(Layer * aLayer, void * aAppState, Error aError);
-    Error StartTimer(uint32_t aMilliseconds, TimerCompleteFunct aComplete, void * aAppState);
-    void CancelTimer(TimerCompleteFunct aOnComplete, void * aAppState);
-
-    Error ScheduleWork(TimerCompleteFunct aComplete, void * aAppState);
-
-#if CHIP_SYSTEM_CONFIG_USE_SOCKETS || CHIP_SYSTEM_CONFIG_USE_NETWORK_FRAMEWORK
-    void PrepareSelect(int & aSetSize, fd_set * aReadSet, fd_set * aWriteSet, fd_set * aExceptionSet, struct timeval & aSleepTime);
-    void HandleSelectResult(int aSetSize, fd_set * aReadSet, fd_set * aWriteSet, fd_set * aExceptionSet);
-    void WakeSelect();
-#endif // CHIP_SYSTEM_CONFIG_USE_SOCKETS || CHIP_SYSTEM_CONFIG_USE_NETWORK_FRAMEWORK
-
-#if CHIP_SYSTEM_CONFIG_USE_LWIP
-    typedef Error (*EventHandler)(Object & aTarget, EventType aEventType, uintptr_t aArgument);
-    Error AddEventHandlerDelegate(LwIPEventHandlerDelegate & aDelegate);
-
-    // Event Handling
-    Error PostEvent(Object & aTarget, EventType aEventType, uintptr_t aArgument);
-    Error DispatchEvents(void);
-    Error DispatchEvent(Event aEvent);
-    Error HandleEvent(Object & aTarget, EventType aEventType, uintptr_t aArgument);
-
-    // Timer Management
-    Error HandlePlatformTimer(void);
-#endif // CHIP_SYSTEM_CONFIG_USE_LWIP
-
-#if CHIP_SYSTEM_CONFIG_USE_DISPATCH
-    void SetDispatchQueue(dispatch_queue_t dispatchQueue) { mDispatchQueue = dispatchQueue; };
-    dispatch_queue_t GetDispatchQueue() { return mDispatchQueue; };
-#endif // CHIP_SYSTEM_CONFIG_USE_DISPATCH
-
-    static uint64_t GetClock_Monotonic();
-    static uint64_t GetClock_MonotonicMS();
-    static uint64_t GetClock_MonotonicHiRes();
-    static Error GetClock_RealTime(uint64_t & curTime);
-    static Error GetClock_RealTimeMS(uint64_t & curTimeMS);
-    static Error SetClock_RealTime(uint64_t newCurTime);
+    Clock & GetClock() { return mClock; }
 
 private:
     LayerState mLayerState;
-    void * mContext;
-    void * mPlatformData;
-    chip::Callback::CallbackDeque mTimerCallbacks;
-
-#if CHIP_SYSTEM_CONFIG_USE_LWIP
-    static LwIPEventHandlerDelegate sSystemEventHandlerDelegate;
-
-    const LwIPEventHandlerDelegate * mEventDelegateList;
-    Timer * mTimerList;
-    bool mTimerComplete;
-#endif // CHIP_SYSTEM_CONFIG_USE_LWIP
-
-#if CHIP_SYSTEM_CONFIG_USE_SOCKETS || CHIP_SYSTEM_CONFIG_USE_NETWORK_FRAMEWORK
-    SystemWakeEvent mWakeEvent;
-#if CHIP_SYSTEM_CONFIG_POSIX_LOCKING
-    pthread_t mHandleSelectThread;
-#endif // CHIP_SYSTEM_CONFIG_POSIX_LOCKING
-#endif // CHIP_SYSTEM_CONFIG_USE_SOCKETS || CHIP_SYSTEM_CONFIG_USE_NETWORK_FRAMEWORK
-
-#if CHIP_SYSTEM_CONFIG_USE_LWIP
-    static Error HandleSystemLayerEvent(Object & aTarget, EventType aEventType, uintptr_t aArgument);
-
-    Error StartPlatformTimer(uint32_t aDelayMilliseconds);
-
-    friend Error Platform::Layer::PostEvent(Layer & aLayer, void * aContext, Object & aTarget, EventType aType,
-                                            uintptr_t aArgument);
-    friend Error Platform::Layer::DispatchEvents(Layer & aLayer, void * aContext);
-    friend Error Platform::Layer::DispatchEvent(Layer & aLayer, void * aContext, Event aEvent);
-    friend Error Platform::Layer::StartTimer(Layer & aLayer, void * aContext, uint32_t aMilliseconds);
-#endif // CHIP_SYSTEM_CONFIG_USE_LWIP
-
-#if CHIP_SYSTEM_CONFIG_USE_DISPATCH
-    dispatch_queue_t mDispatchQueue;
-#endif
+    WatchableEventManager mWatchableEventsManager;
+    Clock mClock;
 
     // Copy and assignment NOT DEFINED
     Layer(const Layer &) = delete;
     Layer & operator=(const Layer &) = delete;
-
-    friend class Timer;
 };
-
-/**
- * This returns the current state of the layer object.
- */
-inline LayerState Layer::State() const
-{
-    return this->mLayerState;
-}
 
 } // namespace System
 } // namespace chip

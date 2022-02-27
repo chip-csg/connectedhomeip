@@ -19,7 +19,7 @@ on:
     pull_request:
 
 concurrency:
-    group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' && github.event.number) || (github.event_name == 'workflow_dispatch' && github.run_number) || github.sha }}
+    group: ${{ github.ref }}-${{ github.workflow }}-${{ (github.event_name == 'pull_request' && github.event.number) || (github.event_name == 'workflow_dispatch' && github.run_number) || github.sha }}
     cancel-in-progress: true
 
 jobs:
@@ -42,12 +42,10 @@ jobs:
         steps:
             - name: Checkout
               uses: actions/checkout@v2
-              # Fetch depth 0 to get all history and be able to check mergepoint for bloat report
               with:
-                  fetch-depth: 0
                   submodules: true
             - name: Bootstrap
-              timeout-minutes: 15
+              timeout-minutes: 25
               run: scripts/build/gn_bootstrap.sh
             - name: Uploading bootstrap logs
               uses: actions/upload-artifact@v2
@@ -60,12 +58,6 @@ jobs:
             - name: Update nRF Connect SDK revision to the currently recommended.
               timeout-minutes: 5
               run: scripts/run_in_build_env.sh "python3 scripts/setup/nrfconnect/update_ncs.py --update --shallow"
-            # https://github.com/project-chip/connectedhomeip/issues/3100
-            # - name: Initialize CodeQL
-            #   uses: github/codeql-action/init@v1
-            #   with:
-            #       languages: "cpp, python"
-            #       queries: +security-and-quality
             - name: Build example nRF Connect SDK Lock App on nRF52840 DK
               timeout-minutes: 5
               run: scripts/examples/nrfconnect_example.sh lock-app nrf52840dk_nrf52840
@@ -115,20 +107,3 @@ jobs:
                       ${{ env.BUILD_TYPE }}-example-build-${{
                       steps.outsuffix.outputs.value }}
                   path: /tmp/output_binaries/${{ env.BUILD_TYPE }}-build
-            # https://github.com/project-chip/connectedhomeip/issues/3100
-            # - name: Remove third_party binaries for CodeQL Analysis
-            #   run: find examples -type d -name "third_party" -exec rm -rf {} +
-            # - name: Remove nrfxlib binaries for CodeQL Analysis
-            #   run: find examples -type d -name "nrfxlib" -exec rm -rf {} +
-            # - name: Remove zephyr binaries for CodeQL Analysis
-            #   run: find examples -type d -name "zephyr" -exec rm -rf {} +
-            # - name: Remove nrf binaries for CodeQL Analysis
-            #   run: find examples -type d -name "nrf" -exec rm -rf {} +
-            # - name: Remove modules binaries for CodeQL Analysis
-            #   run: find examples -type d -name "modules" -exec rm -rf {} +
-            # - name: Perform CodeQL Analysis
-            #   if: ${{ github.event_name == 'push' }}
-            #   uses: github/codeql-action/analyze@v1
-            # - name: Perform CodeQL Analysis
-            #   if: ${{ github.event_name == 'push' }}
-            #   uses: github/codeql-action/analyze@v1

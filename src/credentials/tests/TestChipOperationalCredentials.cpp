@@ -15,13 +15,6 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-
-/**
- *    @file
- *      Unit tests for CHIP Operational Credential Set functionality.
- *
- */
-
 #include <credentials/CHIPCert.h>
 #include <credentials/CHIPOperationalCredentials.h>
 #include <support/CHIPMem.h>
@@ -33,12 +26,6 @@
 
 using namespace chip;
 using namespace chip::TestCerts;
-
-enum
-{
-    kTestCertBufSize = 1024, // Size of buffer needed to hold any of the test certificates
-                             // (in either CHIP or DER form), or to decode the certificates.
-};
 
 namespace {
 static const BitFlags<CertDecodeFlags> sGenTBSHashFlag(CertDecodeFlags::kGenerateTBSHash);
@@ -120,15 +107,16 @@ static void TestChipOperationalCredentials_CertValidation(nlTestSuite * inSuite,
                                                                          { TestCerts::kNode01_01, sGenTBSHashFlag,  sNullLoadFlag       } } },
     };
     // clang-format on
-    static const size_t sNumValidationTestCases = sizeof(sValidationTestCases) / sizeof(sValidationTestCases[0]);
+    static const size_t sNumValidationTestCases = ArraySize(sValidationTestCases);
 
     for (unsigned i = 0; i < sNumValidationTestCases; i++)
     {
-        ChipCertificateData * resultCert    = nullptr;
-        const ValidationTestCase & testCase = sValidationTestCases[i];
+        const ChipCertificateData * resultCert = nullptr;
+        const ValidationTestCase & testCase    = sValidationTestCases[i];
 
-        // Initialize the certificate set and load the specified test certificates.
-        certSet.Init(kMaxCertsPerTestCase, kTestCertBufSize);
+        err = certSet.Init(kMaxCertsPerTestCase);
+        NL_TEST_ASSERT(inSuite, err == CHIP_NO_ERROR);
+
         for (size_t i2 = 0; i2 < kMaxCertsPerTestCase; i2++)
         {
             if (testCase.InputCerts[i2].Type != TestCerts::kNone)
@@ -165,7 +153,7 @@ static void TestChipOperationalCredentials_CertValidation(nlTestSuite * inSuite,
         const CertificateKeyId & trustedRootId = certSet.GetCertSet()[testCase.mExpectedTrustAnchorIndex].mAuthKeyId;
 
         // Invoke the FindValidCert() method (the method being tested).
-        err = opCredSet.FindValidCert(trustedRootId, subjectDN, subjectKeyId, validContext, resultCert);
+        err = opCredSet.FindValidCert(trustedRootId, subjectDN, subjectKeyId, validContext, &resultCert);
         NL_TEST_ASSERT(inSuite, err == testCase.mExpectedResult);
 
         // If the test case is expected to be successful...
@@ -199,7 +187,8 @@ static void TestChipOperationalCredentials_Serialization(nlTestSuite * inSuite, 
     };
 
     // Initialize the certificate set and load the specified test certificates.
-    certSet.Init(kMaxCerts, kTestCertBufSize);
+    err = certSet.Init(kMaxCerts);
+    NL_TEST_ASSERT(inSuite, err == CHIP_NO_ERROR);
     err = LoadTestCert(certSet, TestCerts::kRoot01, sNullLoadFlag, sTrustAnchorFlag);
     NL_TEST_ASSERT(inSuite, err == CHIP_NO_ERROR);
     err = LoadTestCert(certSet, TestCerts::kICA01, sNullLoadFlag, sGenTBSHashFlag);
@@ -209,8 +198,8 @@ static void TestChipOperationalCredentials_Serialization(nlTestSuite * inSuite, 
     NL_TEST_ASSERT(inSuite, opCredSet.Init(&certSet, 1) == CHIP_NO_ERROR);
     NL_TEST_ASSERT(inSuite, opCredSet2.Init(1) == CHIP_NO_ERROR);
 
-    const CertificateKeyId * trustedRootId = opCredSet.GetTrustedRootId(static_cast<uint16_t>(opCredSet.GetCertCount() - 1));
-    NL_TEST_ASSERT(inSuite, trustedRootId != nullptr);
+    CertificateKeyId trustedRootId = opCredSet.GetTrustedRootId(static_cast<uint16_t>(opCredSet.GetCertCount() - 1));
+    NL_TEST_ASSERT(inSuite, !trustedRootId.empty());
 
     NL_TEST_ASSERT(inSuite,
                    serializedKeypair.SetLength(sTestCert_Node01_01_PublicKey_Len + sTestCert_Node01_01_PrivateKey_Len) ==
@@ -222,19 +211,19 @@ static void TestChipOperationalCredentials_Serialization(nlTestSuite * inSuite, 
 
     NL_TEST_ASSERT(inSuite, keypair.Deserialize(serializedKeypair) == CHIP_NO_ERROR);
 
-    NL_TEST_ASSERT(inSuite, opCredSet.SetDevOpCredKeypair(*trustedRootId, &keypair) == CHIP_NO_ERROR);
+    NL_TEST_ASSERT(inSuite, opCredSet.SetDevOpCredKeypair(trustedRootId, &keypair) == CHIP_NO_ERROR);
 
     NL_TEST_ASSERT(inSuite,
-                   opCredSet.SetDevOpCred(*trustedRootId, sTestCert_Node01_01_Chip,
+                   opCredSet.SetDevOpCred(trustedRootId, sTestCert_Node01_01_Chip,
                                           static_cast<uint16_t>(sTestCert_Node01_01_Chip_Len)) == CHIP_NO_ERROR);
 
-    NL_TEST_ASSERT(inSuite, opCredSet.ToSerializable(*trustedRootId, sSerialized) == CHIP_NO_ERROR);
+    NL_TEST_ASSERT(inSuite, opCredSet.ToSerializable(trustedRootId, sSerialized) == CHIP_NO_ERROR);
     NL_TEST_ASSERT(inSuite, opCredSet2.FromSerializable(sSerialized) == CHIP_NO_ERROR);
 
-    const CertificateKeyId * trustedRootId2 = opCredSet2.GetTrustedRootId(static_cast<uint16_t>(opCredSet2.GetCertCount() - 1));
-    NL_TEST_ASSERT(inSuite, trustedRootId2->IsEqual(*trustedRootId));
+    CertificateKeyId trustedRootId2 = opCredSet2.GetTrustedRootId(static_cast<uint16_t>(opCredSet2.GetCertCount() - 1));
+    NL_TEST_ASSERT(inSuite, trustedRootId2.data_equal(trustedRootId));
 
-    NL_TEST_ASSERT(inSuite, opCredSet2.ToSerializable(*trustedRootId2, sSerialized2) == CHIP_NO_ERROR);
+    NL_TEST_ASSERT(inSuite, opCredSet2.ToSerializable(trustedRootId2, sSerialized2) == CHIP_NO_ERROR);
 
     NL_TEST_ASSERT(inSuite,
                    strncmp(reinterpret_cast<const char *>(&sSerialized), reinterpret_cast<const char *>(&sSerialized2),

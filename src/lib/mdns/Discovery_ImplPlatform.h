@@ -36,8 +36,11 @@ class DiscoveryImplPlatform : public ServiceAdvertiser, public Resolver
 public:
     CHIP_ERROR Init();
 
+    /// Starts the service advertiser if not yet started. Otherwise, removes all existing services.
     CHIP_ERROR Start(Inet::InetLayer * inetLayer, uint16_t port) override;
-    CHIP_ERROR StartResolver(Inet::InetLayer * inetLayer, uint16_t port) override { return Start(inetLayer, port); }
+
+    /// Starts the service resolver if not yet started
+    CHIP_ERROR StartResolver(Inet::InetLayer * inetLayer, uint16_t port) override { return Init(); }
 
     /// Advertises the CHIP node as an operational node
     CHIP_ERROR Advertise(const OperationalAdvertisingParameters & params) override;
@@ -48,6 +51,9 @@ public:
     /// This function stops publishing the device on mDNS.
     CHIP_ERROR StopPublishDevice() override;
 
+    /// Returns DNS-SD instance name formatted as hex string
+    CHIP_ERROR GetCommissionableInstanceName(char * instanceName, size_t maxLength) override;
+
     /// Registers a resolver delegate if none has been registered before
     CHIP_ERROR SetResolverDelegate(ResolverDelegate * delegate) override;
 
@@ -56,7 +62,7 @@ public:
 
     CHIP_ERROR FindCommissionableNodes(DiscoveryFilter filter = DiscoveryFilter()) override;
 
-    CHIP_ERROR FindCommissioners(DiscoveryFilter filter = DiscoveryFilter()) override { return CHIP_ERROR_NOT_IMPLEMENTED; }
+    CHIP_ERROR FindCommissioners(DiscoveryFilter filter = DiscoveryFilter()) override;
 
     static DiscoveryImplPlatform & GetInstance();
 
@@ -72,8 +78,8 @@ private:
     static void HandleNodeIdResolve(void * context, MdnsService * result, CHIP_ERROR error);
     static void HandleMdnsInit(void * context, CHIP_ERROR initError);
     static void HandleMdnsError(void * context, CHIP_ERROR initError);
-    static void HandleCommissionableNodeBrowse(void * context, MdnsService * services, size_t servicesSize, CHIP_ERROR error);
-    static void HandleCommissionableNodeResolve(void * context, MdnsService * result, CHIP_ERROR error);
+    static void HandleNodeBrowse(void * context, MdnsService * services, size_t servicesSize, CHIP_ERROR error);
+    static void HandleNodeResolve(void * context, MdnsService * result, CHIP_ERROR error);
     static CHIP_ERROR GenerateRotatingDeviceId(char rotatingDeviceIdHexBuffer[], size_t & rotatingDeviceIdHexBufferSize);
 #ifdef DETAIL_LOGGING
     static void PrintEntries(const MdnsService * service);

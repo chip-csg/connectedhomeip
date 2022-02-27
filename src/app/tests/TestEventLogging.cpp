@@ -54,7 +54,6 @@ static const chip::ClusterId kLivenessClusterId = 0x00000022;
 static const uint32_t kLivenessChangeEvent      = 1;
 static const chip::EndpointId kTestEndpointId   = 2;
 static const uint64_t kLivenessDeviceStatus     = chip::TLV::ContextTag(1);
-static const chip::Transport::AdminId gAdminId  = 0;
 static chip::TransportMgr<chip::Transport::UDP> gTransportManager;
 static chip::System::Layer gSystemLayer;
 
@@ -71,17 +70,14 @@ void InitializeChip(nlTestSuite * apSuite)
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
     chip::Optional<chip::Transport::PeerAddress> peer(chip::Transport::Type::kUndefined);
-    chip::Transport::AdminPairingTable admins;
-    chip::Transport::AdminPairingInfo * adminInfo = admins.AssignAdminId(gAdminId, kTestDeviceNodeId1);
-
-    NL_TEST_ASSERT(apSuite, adminInfo != nullptr);
+    chip::Transport::FabricTable fabrics;
 
     err = chip::Platform::MemoryInit();
     NL_TEST_ASSERT(apSuite, err == CHIP_NO_ERROR);
 
-    gSystemLayer.Init(nullptr);
+    gSystemLayer.Init();
 
-    err = gSessionManager.Init(kTestDeviceNodeId1, &gSystemLayer, &gTransportManager, &admins, &gMessageCounterManager);
+    err = gSessionManager.Init(&gSystemLayer, &gTransportManager, &fabrics, &gMessageCounterManager);
     NL_TEST_ASSERT(apSuite, err == CHIP_NO_ERROR);
 
     err = gExchangeManager.Init(&gSessionManager);
@@ -149,17 +145,18 @@ static void CheckLogReadOut(nlTestSuite * apSuite, chip::app::EventManagement & 
     CHIP_ERROR err;
     chip::TLV::TLVReader reader;
     chip::TLV::TLVWriter writer;
+    size_t eventCount = 0;
     uint8_t backingStore[1024];
-    size_t elementCount;
+    size_t totalNumElements;
     writer.Init(backingStore, 1024);
-    err = alogMgmt.FetchEventsSince(writer, clusterInfo, priority, startingEventNumber);
+    err = alogMgmt.FetchEventsSince(writer, clusterInfo, priority, startingEventNumber, eventCount);
     NL_TEST_ASSERT(apSuite, err == CHIP_NO_ERROR || err == CHIP_END_OF_TLV);
 
     reader.Init(backingStore, writer.GetLengthWritten());
 
-    err = chip::TLV::Utilities::Count(reader, elementCount, false);
+    err = chip::TLV::Utilities::Count(reader, totalNumElements, false);
     NL_TEST_ASSERT(apSuite, err == CHIP_NO_ERROR);
-    NL_TEST_ASSERT(apSuite, elementCount == expectedNumEvents);
+    NL_TEST_ASSERT(apSuite, totalNumElements == expectedNumEvents && totalNumElements == eventCount);
     reader.Init(backingStore, writer.GetLengthWritten());
     chip::TLV::Debug::Dump(reader, SimpleDumpWriter);
 }
@@ -313,6 +310,8 @@ int TestEventLogging()
     InitializeChip(&theSuite);
     InitializeEventLogging();
     nlTestRunner(&theSuite, nullptr);
+
+    gSystemLayer.Shutdown();
 
     return (nlTestRunnerStats(&theSuite));
 }

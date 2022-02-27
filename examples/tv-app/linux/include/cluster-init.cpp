@@ -72,7 +72,7 @@ void emberAfWakeOnLanClusterInitCallback(chip::EndpointId endpoint)
     err                           = wolManager.Init();
     if (CHIP_NO_ERROR == err)
     {
-        char macAddress[17] = "";
+        char macAddress[32] = "";
         wolManager.setMacAddress(endpoint, macAddress);
         wolManager.store(endpoint, macAddress);
     }
@@ -136,7 +136,7 @@ void emberAfAudioOutputClusterInitCallback(EndpointId endpoint)
  * @param endpoint   Ver.: always
  *
  */
-void emberAfContentLaunchClusterInitCallback(EndpointId endpoint)
+void emberAfContentLauncherClusterInitCallback(EndpointId endpoint)
 {
     ClusterManager().writeListAttribute(endpoint, ZCL_CONTENT_LAUNCH_CLUSTER_ID, ZCL_CONTENT_LAUNCHER_ACCEPTS_HEADER_ATTRIBUTE_ID,
                                         ContentLauncherManager().proxyGetAcceptsHeader());

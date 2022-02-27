@@ -53,7 +53,7 @@
  *
  * An application or module that incorporates chip can define a project configuration
  * file to override standard chip configuration with application-specific values.
- * The chipProjectConfig.h file is typically located outside the Openchip source tree,
+ * The chipProjectConfig.h file is typically located outside the CHIP source tree,
  * alongside the source code for the application.
  */
 #ifdef CHIP_PROJECT_CONFIG_INCLUDE
@@ -64,8 +64,8 @@
  *
  * A platform configuration file contains overrides to standard chip configuration
  * that are specific to the platform or OS on which chip is running.  It is typically
- * provided as apart of an adaptation layer that adapts Openchip to the target
- * environment.  This adaptation layer may be included in the Openchip source tree
+ * provided as apart of an adaptation layer that adapts CHIP to the target
+ * environment.  This adaptation layer may be included in the CHIP source tree
  * itself or implemented externally.
  */
 #ifdef CHIP_PLATFORM_CONFIG_INCLUDE
@@ -73,63 +73,6 @@
 #endif
 
 // Profile-specific Configuration Headers
-/**
- *  @def CHIP_CONFIG_ERROR_TYPE
- *
- *  @brief
- *    This defines the data type used to represent errors for chip.
- *
- */
-#ifndef CHIP_CONFIG_ERROR_TYPE
-#include <stdint.h>
-
-#define CHIP_CONFIG_ERROR_TYPE int32_t
-#endif // CHIP_CONFIG_ERROR_TYPE
-
-/**
- *  @def CHIP_CONFIG_NO_ERROR
- *
- *  @brief
- *    This defines the chip error code for no error or success.
- *
- */
-#ifndef CHIP_CONFIG_NO_ERROR
-#define CHIP_CONFIG_NO_ERROR 0
-#endif // CHIP_CONFIG_NO_ERROR
-
-/**
- *  @def CHIP_CONFIG_ERROR_MIN
- *
- *  @brief
- *    This defines the base or minimum chip error number range.
- *
- */
-#ifndef CHIP_CONFIG_ERROR_MIN
-#define CHIP_CONFIG_ERROR_MIN 4000
-#endif // CHIP_CONFIG_ERROR_MIN
-
-/**
- *  @def CHIP_CONFIG_ERROR_MAX
- *
- *  @brief
- *    This defines the top or maximum chip error number range.
- *
- */
-#ifndef CHIP_CONFIG_ERROR_MAX
-#define CHIP_CONFIG_ERROR_MAX 4999
-#endif // CHIP_CONFIG_ERROR_MAX
-
-/**
- *  @def _CHIP_CONFIG_ERROR
- *
- *  @brief
- *    This defines a mapping function for chip errors that allows
- *    mapping such errors into a platform- or system-specific manner.
- *
- */
-#ifndef _CHIP_CONFIG_ERROR
-#define _CHIP_CONFIG_ERROR(e) (CHIP_ERROR_MIN + (e))
-#endif // _CHIP_CONFIG_ERROR
 
 /**
  *  @def CHIP_CONFIG_USE_OPENSSL_ECC
@@ -1394,8 +1337,19 @@
  *
  */
 #ifndef CHIP_PORT
-#define CHIP_PORT 11097
+#define CHIP_PORT 5540
 #endif // CHIP_PORT
+
+/**
+ *  @def CHIP_UDC_PORT
+ *
+ *  @brief
+ *    chip TCP/UDP port for unsecured user-directed-commissioning traffic.
+ *
+ */
+#ifndef CHIP_UDC_PORT
+#define CHIP_UDC_PORT CHIP_PORT + 10
+#endif // CHIP_UDC_PORT
 
 /**
  *  @def CHIP_UNSECURED_PORT
@@ -1984,6 +1938,37 @@
 #endif // CHIP_CONFIG_TEST
 
 /**
+ *  @def CHIP_CONFIG_ERROR_SOURCE
+ *
+ *  If asserted (1), then CHIP_ERROR constants will include the source location of their expansion.
+ */
+#ifndef CHIP_CONFIG_ERROR_SOURCE
+#define CHIP_CONFIG_ERROR_SOURCE 0
+#endif // CHIP_CONFIG_ERROR_SOURCE
+
+/**
+ *  @def CHIP_CONFIG_ERROR_SOURCE_NO_ERROR
+ *
+ *  If asserted (1) along with CHIP_CONFIG_ERROR_SOURCE, then instances of CHIP_NO_ERROR will also include
+ *  the source location of their expansion. Otherwise, CHIP_NO_ERROR is excluded from source tracking.
+ */
+#ifndef CHIP_CONFIG_ERROR_SOURCE_NO_ERROR
+#define CHIP_CONFIG_ERROR_SOURCE_NO_ERROR 1
+#endif // CHIP_CONFIG_ERROR_SOURCE
+
+/**
+ *  @def CHIP_CONFIG_ERROR_FORMAT_AS_STRING
+ *
+ *  If 0, then ChipError::Format() returns an integer (ChipError::StorageType).
+ *  If 1, then ChipError::Format() returns a const char *, from chip::ErrorStr().
+ *  In either case, the macro CHIP_ERROR_FORMAT expands to a suitable printf format.
+ */
+
+#ifndef CHIP_CONFIG_ERROR_FORMAT_AS_STRING
+#define CHIP_CONFIG_ERROR_FORMAT_AS_STRING 0
+#endif // CHIP_CONFIG_ERROR_FORMAT_AS_STRING
+
+/**
  *  @def CHIP_CONFIG_SHORT_ERROR_STR
  *
  *  @brief
@@ -2419,3 +2404,97 @@ extern const char CHIP_NON_PRODUCTION_MARKER[];
 #define CHIP_COMMISSIONING_HINT_INDEX_PRESS_RESET_SECONDS_WITH_POWER 10
 #define CHIP_COMMISSIONING_HINT_INDEX_PRESS_RESET_UNTIL_BLINK_WITH_POWER 11
 #endif
+
+/**
+ *  @name Interaction Model object pool configuration.
+ *
+ *  @brief
+ *    The following definitions sets the maximum number of corresponding interaction model object pool size.
+ *
+ *      * #CHIP_IM_MAX_NUM_COMMAND_HANDLER
+ *      * #CHIP_IM_MAX_NUM_COMMAND_SENDER
+ *      * #CHIP_IM_MAX_NUM_READ_HANDLER
+ *      * #CHIP_IM_MAX_NUM_READ_CLIENT
+ *      * #CHIP_IM_MAX_REPORTS_IN_FLIGHT
+ *      * #CHIP_IM_SERVER_MAX_NUM_PATH_GROUPS
+ *      * #CHIP_IM_MAX_NUM_WRITE_HANDLER
+ *      * #CHIP_IM_MAX_NUM_WRITE_CLIENT
+ *
+ *  @{
+ */
+
+/**
+ * @def CHIP_IM_MAX_NUM_COMMAND_HANDLER
+ *
+ * @brief Defines the maximum number of CommandHandler, limits the number of active commands transactions on server.
+ */
+#ifndef CHIP_IM_MAX_NUM_COMMAND_HANDLER
+#define CHIP_IM_MAX_NUM_COMMAND_HANDLER 4
+#endif
+
+/**
+ * @def CHIP_IM_MAX_NUM_COMMAND_SENDER
+ *
+ * @brief Defines the maximum number of CommandSender, limits the number of active command transactions on client.
+ */
+#ifndef CHIP_IM_MAX_NUM_COMMAND_SENDER
+#define CHIP_IM_MAX_NUM_COMMAND_SENDER 4
+#endif
+
+/**
+ * @def CHIP_IM_MAX_NUM_READ_HANDLER
+ *
+ * @brief Defines the maximum number of ReadHandler, limits the number of active read transactions on server.
+ */
+#ifndef CHIP_IM_MAX_NUM_READ_HANDLER
+#define CHIP_IM_MAX_NUM_READ_HANDLER 4
+#endif
+
+/**
+ * @def CHIP_IM_MAX_NUM_READ_CLIENT
+ *
+ * @brief Defines the maximum number of ReadClient, limits the number of active read transactions on client.
+ */
+#ifndef CHIP_IM_MAX_NUM_READ_CLIENT
+#define CHIP_IM_MAX_NUM_READ_CLIENT 4
+#endif
+
+/**
+ * @def CHIP_IM_MAX_REPORTS_IN_FLIGHT
+ *
+ * @brief Defines the maximum number of Reports, limits the traffic of read and subscription transactions.
+ */
+#ifndef CHIP_IM_MAX_REPORTS_IN_FLIGHT
+#define CHIP_IM_MAX_REPORTS_IN_FLIGHT 4
+#endif
+
+/**
+ * @def CHIP_IM_SERVER_MAX_NUM_PATH_GROUPS
+ *
+ * @brief Defines the maximum number of path objects, limits the number of attributes being read or subscribed at the same time.
+ */
+#ifndef CHIP_IM_SERVER_MAX_NUM_PATH_GROUPS
+#define CHIP_IM_SERVER_MAX_NUM_PATH_GROUPS 8
+#endif
+
+/**
+ * @def CHIP_IM_MAX_NUM_WRITE_HANDLER
+ *
+ * @brief Defines the maximum number of WriteHandler, limits the number of active write transactions on server.
+ */
+#ifndef CHIP_IM_MAX_NUM_WRITE_HANDLER
+#define CHIP_IM_MAX_NUM_WRITE_HANDLER 4
+#endif
+
+/**
+ * @def CHIP_IM_MAX_NUM_WRITE_CLIENT
+ *
+ * @brief Defines the maximum number of WriteClient, limits the number of active write transactions on client.
+ */
+#ifndef CHIP_IM_MAX_NUM_WRITE_CLIENT
+#define CHIP_IM_MAX_NUM_WRITE_CLIENT 4
+#endif
+
+/**
+ * @}
+ */

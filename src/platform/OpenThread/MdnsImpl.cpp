@@ -32,6 +32,11 @@ CHIP_ERROR ChipMdnsInit(MdnsAsyncReturnCallback initCallback, MdnsAsyncReturnCal
     return CHIP_NO_ERROR;
 }
 
+CHIP_ERROR ChipMdnsShutdown()
+{
+    return CHIP_NO_ERROR;
+}
+
 const char * GetProtocolString(MdnsServiceProtocol protocol)
 {
     return protocol == MdnsServiceProtocol::kMdnsProtocolUdp ? "_udp" : "_tcp";
@@ -39,32 +44,36 @@ const char * GetProtocolString(MdnsServiceProtocol protocol)
 
 CHIP_ERROR ChipMdnsPublishService(const MdnsService * service)
 {
-    CHIP_ERROR result = CHIP_NO_ERROR;
-
-    VerifyOrExit(service, result = CHIP_ERROR_INVALID_ARGUMENT);
+#if CHIP_DEVICE_CONFIG_ENABLE_THREAD_SRP_CLIENT
+    ReturnErrorCodeIf(service == nullptr, CHIP_ERROR_INVALID_ARGUMENT);
     if (strcmp(service->mHostName, "") != 0)
     {
-        CHIP_ERROR hostNameErr = ThreadStackMgr().SetupSrpHost(service->mHostName);
-        VerifyOrExit(hostNameErr == CHIP_NO_ERROR, result = hostNameErr);
+        ReturnErrorOnFailure(ThreadStackMgr().SetupSrpHost(service->mHostName));
     }
 
     char serviceType[chip::Mdns::kMdnsTypeAndProtocolMaxSize + 1];
     snprintf(serviceType, sizeof(serviceType), "%s.%s", service->mType, GetProtocolString(service->mProtocol));
 
-    result =
-        ThreadStackMgr().AddSrpService(service->mName, serviceType, service->mPort, service->mTextEntries, service->mTextEntrySize);
-
-exit:
-    return result;
+    Span<const char * const> subTypes(service->mSubTypes, service->mSubTypeSize);
+    Span<const TextEntry> textEntries(service->mTextEntries, service->mTextEntrySize);
+    return ThreadStackMgr().AddSrpService(service->mName, serviceType, service->mPort, subTypes, textEntries);
+#else
+    return CHIP_ERROR_NOT_IMPLEMENTED;
+#endif // CHIP_DEVICE_CONFIG_ENABLE_THREAD_SRP_CLIENT
 }
 
 CHIP_ERROR ChipMdnsStopPublish()
 {
+#if CHIP_DEVICE_CONFIG_ENABLE_THREAD_SRP_CLIENT
     return ThreadStackMgr().RemoveAllSrpServices();
+#else
+    return CHIP_ERROR_NOT_IMPLEMENTED;
+#endif // CHIP_DEVICE_CONFIG_ENABLE_THREAD_SRP_CLIENT
 }
 
 CHIP_ERROR ChipMdnsStopPublishService(const MdnsService * service)
 {
+#if CHIP_DEVICE_CONFIG_ENABLE_THREAD_SRP_CLIENT
     if (service == nullptr)
         return CHIP_ERROR_INVALID_ARGUMENT;
 
@@ -72,17 +81,40 @@ CHIP_ERROR ChipMdnsStopPublishService(const MdnsService * service)
     snprintf(serviceType, sizeof(serviceType), "%s.%s", service->mType, GetProtocolString(service->mProtocol));
 
     return ThreadStackMgr().RemoveSrpService(service->mName, serviceType);
+#else
+    return CHIP_ERROR_NOT_IMPLEMENTED;
+#endif // CHIP_DEVICE_CONFIG_ENABLE_THREAD_SRP_CLIENT
 }
 
 CHIP_ERROR ChipMdnsBrowse(const char * type, MdnsServiceProtocol protocol, Inet::IPAddressType addressType,
                           Inet::InterfaceId interface, MdnsBrowseCallback callback, void * context)
 {
+#if CHIP_DEVICE_CONFIG_ENABLE_THREAD_SRP_CLIENT && CHIP_DEVICE_CONFIG_ENABLE_THREAD_DNS_CLIENT
+    if (type == nullptr || callback == nullptr)
+        return CHIP_ERROR_INVALID_ARGUMENT;
+
+    char serviceType[Mdns::kMdnsFullTypeAndProtocolMaxSize + 1]; // +1 for null-terminator
+    snprintf(serviceType, sizeof(serviceType), "%s.%s", type, GetProtocolString(protocol));
+
+    return ThreadStackMgr().DnsBrowse(serviceType, callback, context);
+#else
     return CHIP_ERROR_NOT_IMPLEMENTED;
+#endif // CHIP_DEVICE_CONFIG_ENABLE_THREAD_SRP_CLIENT && CHIP_DEVICE_CONFIG_ENABLE_THREAD_DNS_CLIENT
 }
 
 CHIP_ERROR ChipMdnsResolve(MdnsService * browseResult, Inet::InterfaceId interface, MdnsResolveCallback callback, void * context)
 {
+#if CHIP_DEVICE_CONFIG_ENABLE_THREAD_SRP_CLIENT && CHIP_DEVICE_CONFIG_ENABLE_THREAD_DNS_CLIENT
+    if (browseResult == nullptr || callback == nullptr)
+        return CHIP_ERROR_INVALID_ARGUMENT;
+
+    char serviceType[chip::Mdns::kMdnsTypeAndProtocolMaxSize + 1];
+    snprintf(serviceType, sizeof(serviceType), "%s.%s", browseResult->mType, GetProtocolString(browseResult->mProtocol));
+
+    return ThreadStackMgr().DnsResolve(serviceType, browseResult->mName, callback, context);
+#else
     return CHIP_ERROR_NOT_IMPLEMENTED;
+#endif // CHIP_DEVICE_CONFIG_ENABLE_THREAD_SRP_CLIENT && CHIP_DEVICE_CONFIG_ENABLE_THREAD_DNS_CLIENT
 }
 
 } // namespace Mdns

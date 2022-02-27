@@ -53,11 +53,12 @@ void MessageCounterManager::Shutdown()
     if (mExchangeMgr != nullptr)
     {
         mExchangeMgr->UnregisterUnsolicitedMessageHandlerForType(Protocols::SecureChannel::MsgType::MsgCounterSyncReq);
+        mExchangeMgr->CloseAllContextsForDelegate(this);
         mExchangeMgr = nullptr;
     }
 }
 
-CHIP_ERROR MessageCounterManager::StartSync(SecureSessionHandle session, Transport::PeerConnectionState * state)
+CHIP_ERROR MessageCounterManager::StartSync(SessionHandle session, Transport::PeerConnectionState * state)
 {
     // Initiate message counter synchronization if no message counter synchronization is in progress.
     Transport::PeerMessageCounter & counter = state->GetSessionMessageCounter().GetPeerMessageCounter();
@@ -69,7 +70,7 @@ CHIP_ERROR MessageCounterManager::StartSync(SecureSessionHandle session, Transpo
     return CHIP_NO_ERROR;
 }
 
-CHIP_ERROR MessageCounterManager::QueueReceivedMessageAndStartSync(const PacketHeader & packetHeader, SecureSessionHandle session,
+CHIP_ERROR MessageCounterManager::QueueReceivedMessageAndStartSync(const PacketHeader & packetHeader, SessionHandle session,
                                                                    Transport::PeerConnectionState * state,
                                                                    const Transport::PeerAddress & peerAddress,
                                                                    System::PacketBufferHandle && msgBuf)
@@ -85,17 +86,18 @@ CHIP_ERROR MessageCounterManager::QueueReceivedMessageAndStartSync(const PacketH
     return CHIP_NO_ERROR;
 }
 
-void MessageCounterManager::OnMessageReceived(Messaging::ExchangeContext * exchangeContext, const PacketHeader & packetHeader,
-                                              const PayloadHeader & payloadHeader, System::PacketBufferHandle && msgBuf)
+CHIP_ERROR MessageCounterManager::OnMessageReceived(Messaging::ExchangeContext * exchangeContext, const PacketHeader & packetHeader,
+                                                    const PayloadHeader & payloadHeader, System::PacketBufferHandle && msgBuf)
 {
     if (payloadHeader.HasMessageType(Protocols::SecureChannel::MsgType::MsgCounterSyncReq))
     {
-        HandleMsgCounterSyncReq(exchangeContext, packetHeader, std::move(msgBuf));
+        return HandleMsgCounterSyncReq(exchangeContext, packetHeader, std::move(msgBuf));
     }
     else if (payloadHeader.HasMessageType(Protocols::SecureChannel::MsgType::MsgCounterSyncRsp))
     {
-        HandleMsgCounterSyncResp(exchangeContext, packetHeader, std::move(msgBuf));
+        return HandleMsgCounterSyncResp(exchangeContext, packetHeader, std::move(msgBuf));
     }
+    return CHIP_NO_ERROR;
 }
 
 void MessageCounterManager::OnResponseTimeout(Messaging::ExchangeContext * exchangeContext)
@@ -111,8 +113,6 @@ void MessageCounterManager::OnResponseTimeout(Messaging::ExchangeContext * excha
     {
         ChipLogError(SecureChannel, "Timed out! Failed to clear message counter synchronization status.");
     }
-
-    exchangeContext->Close();
 }
 
 CHIP_ERROR MessageCounterManager::AddToReceiveTable(const PacketHeader & packetHeader, const Transport::PeerAddress & peerAddress,
@@ -174,7 +174,7 @@ void MessageCounterManager::ProcessPendingMessages(NodeId peerNodeId)
     }
 }
 
-CHIP_ERROR MessageCounterManager::SendMsgCounterSyncReq(SecureSessionHandle session, Transport::PeerConnectionState * state)
+CHIP_ERROR MessageCounterManager::SendMsgCounterSyncReq(SessionHandle session, Transport::PeerConnectionState * state)
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
 
@@ -208,6 +208,10 @@ CHIP_ERROR MessageCounterManager::SendMsgCounterSyncReq(SecureSessionHandle sess
 exit:
     if (err != CHIP_NO_ERROR)
     {
+        if (exchangeContext != nullptr)
+        {
+            exchangeContext->Close();
+        }
         state->GetSessionMessageCounter().GetPeerMessageCounter().SyncFailed();
         ChipLogError(SecureChannel, "Failed to send message counter synchronization request with error:%s", ErrorStr(err));
     }
@@ -253,8 +257,8 @@ exit:
     return err;
 }
 
-void MessageCounterManager::HandleMsgCounterSyncReq(Messaging::ExchangeContext * exchangeContext, const PacketHeader & packetHeader,
-                                                    System::PacketBufferHandle && msgBuf)
+CHIP_ERROR MessageCounterManager::HandleMsgCounterSyncReq(Messaging::ExchangeContext * exchangeContext,
+                                                          const PacketHeader & packetHeader, System::PacketBufferHandle && msgBuf)
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
 
@@ -276,12 +280,11 @@ exit:
         ChipLogError(SecureChannel, "Failed to handle MsgCounterSyncReq message with error:%s", ErrorStr(err));
     }
 
-    exchangeContext->Close();
-    return;
+    return err;
 }
 
-void MessageCounterManager::HandleMsgCounterSyncResp(Messaging::ExchangeContext * exchangeContext,
-                                                     const PacketHeader & packetHeader, System::PacketBufferHandle && msgBuf)
+CHIP_ERROR MessageCounterManager::HandleMsgCounterSyncResp(Messaging::ExchangeContext * exchangeContext,
+                                                           const PacketHeader & packetHeader, System::PacketBufferHandle && msgBuf)
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
 
@@ -323,8 +326,7 @@ exit:
         ChipLogError(SecureChannel, "Failed to handle MsgCounterSyncResp message with error:%s", ErrorStr(err));
     }
 
-    exchangeContext->Close();
-    return;
+    return err;
 }
 
 } // namespace secure_channel

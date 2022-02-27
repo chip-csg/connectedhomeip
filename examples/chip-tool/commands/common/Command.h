@@ -59,6 +59,7 @@ enum ArgumentType
     Number_int32,
     Number_int64,
     CharString,
+    Boolean,
     OctetString,
     Attribute,
     Address
@@ -101,6 +102,8 @@ public:
         ChipDeviceCommissioner * commissioner;
         chip::Controller::ExampleOperationalCredentialsIssuer * opCredsIssuer;
         PersistentStorage * storage;
+        chip::NodeId localId;
+        chip::NodeId remoteId;
     };
 
     Command(const char * commandName) : mName(commandName) {}
@@ -129,6 +132,10 @@ public:
      */
     size_t AddArgument(const char * name, chip::ByteSpan * value);
     size_t AddArgument(const char * name, AddressWithInterface * out);
+    size_t AddArgument(const char * name, int64_t min, uint64_t max, bool * out)
+    {
+        return AddArgument(name, min, max, reinterpret_cast<void *>(out), Boolean);
+    }
     size_t AddArgument(const char * name, int64_t min, uint64_t max, int8_t * out)
     {
         return AddArgument(name, min, max, reinterpret_cast<void *>(out), Number_int8);
@@ -162,17 +169,41 @@ public:
         return AddArgument(name, min, max, reinterpret_cast<void *>(out), Number_uint64);
     }
 
-    virtual CHIP_ERROR Run(NodeId localId, NodeId remoteId) = 0;
+    // Will be called in a setting in which it's safe to touch the CHIP
+    // stack. The rules for Run() are as follows:
+    //
+    // 1) If error is returned, Run() must not call SetCommandExitStatus.
+    // 2) If success is returned Run() must either have called
+    //    SetCommandExitStatus() or scheduled async work that will do that.
+    virtual CHIP_ERROR Run() = 0;
 
-    bool GetCommandExitStatus() const { return mCommandExitStatus; }
-    void SetCommandExitStatus(bool status)
+    // Get the wait duration, in seconds, before the command times out.
+    virtual uint16_t GetWaitDurationInSeconds() const = 0;
+
+    // Shut down the command, in case any work needs to be done after the event
+    // loop has been stopped.
+    virtual void Shutdown() {}
+
+    CHIP_ERROR GetCommandExitStatus() const { return mCommandExitStatus; }
+    void SetCommandExitStatus(CHIP_ERROR status)
     {
         mCommandExitStatus = status;
         UpdateWaitForResponse(false);
     }
 
     void UpdateWaitForResponse(bool value);
-    void WaitForResponse(uint16_t duration);
+
+    // There is a certain symmetry between the single-event-loop and
+    // separate-event-loop approaches.  With a separate event loop, we schedule
+    // our work on that event loop and synchronously wait (block) waiting for a
+    // response. When using a single event loop, we ask for an async response
+    // notification and then block processing work on the event loop
+    // synchronously until that notification happens.
+#if CONFIG_USE_SEPARATE_EVENTLOOP
+    void WaitForResponse(uint16_t seconds);
+#else  // CONFIG_USE_SEPARATE_EVENTLOOP
+    CHIP_ERROR ScheduleWaitForResponse(uint16_t seconds);
+#endif // CONFIG_USE_SEPARATE_EVENTLOOP
 
 protected:
     ExecutionContext * GetExecContext() { return mExecContext; }
@@ -183,11 +214,13 @@ private:
     size_t AddArgument(const char * name, int64_t min, uint64_t max, void * out, ArgumentType type);
     size_t AddArgument(const char * name, int64_t min, uint64_t max, void * out);
 
-    bool mCommandExitStatus = false;
-    const char * mName      = nullptr;
+    CHIP_ERROR mCommandExitStatus = CHIP_ERROR_INTERNAL;
+    const char * mName            = nullptr;
     std::vector<Argument> mArgs;
 
+#if CONFIG_USE_SEPARATE_EVENTLOOP
     std::condition_variable cvWaitingForResponse;
     std::mutex cvWaitingForResponseMutex;
     bool mWaitingForResponse{ false };
+#endif // CONFIG_USE_SEPARATE_EVENTLOOP
 };

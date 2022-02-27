@@ -22,6 +22,7 @@
  *
  */
 
+#include <app/AppBuildConfig.h>
 #include <app/InteractionModelEngine.h>
 #include <app/MessageDef/EventPath.h>
 #include <app/ReadHandler.h>
@@ -33,10 +34,8 @@ CHIP_ERROR ReadHandler::Init(InteractionModelDelegate * apDelegate)
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
     // Error if already initialized.
-    VerifyOrExit(apDelegate != nullptr, err = CHIP_ERROR_INCORRECT_STATE);
     VerifyOrExit(mpExchangeCtx == nullptr, err = CHIP_ERROR_INCORRECT_STATE);
     mpExchangeCtx              = nullptr;
-    mpDelegate                 = apDelegate;
     mSuppressResponse          = true;
     mpAttributeClusterInfoList = nullptr;
     mpEventClusterInfoList     = nullptr;
@@ -52,23 +51,11 @@ void ReadHandler::Shutdown()
 {
     InteractionModelEngine::GetInstance()->ReleaseClusterInfoList(mpAttributeClusterInfoList);
     InteractionModelEngine::GetInstance()->ReleaseClusterInfoList(mpEventClusterInfoList);
-    AbortExistingExchangeContext();
+    mpExchangeCtx = nullptr;
     MoveToState(HandlerState::Uninitialized);
-    mpDelegate                 = nullptr;
     mpAttributeClusterInfoList = nullptr;
     mpEventClusterInfoList     = nullptr;
     mCurrentPriority           = PriorityLevel::Invalid;
-}
-
-CHIP_ERROR ReadHandler::AbortExistingExchangeContext()
-{
-    if (mpExchangeCtx != nullptr)
-    {
-        mpExchangeCtx->Abort();
-        mpExchangeCtx = nullptr;
-    }
-
-    return CHIP_NO_ERROR;
 }
 
 CHIP_ERROR ReadHandler::OnReadRequest(Messaging::ExchangeContext * apExchangeContext, System::PacketBufferHandle && aPayload)
@@ -78,9 +65,7 @@ CHIP_ERROR ReadHandler::OnReadRequest(Messaging::ExchangeContext * apExchangeCon
 
     mpExchangeCtx = apExchangeContext;
     err           = ProcessReadRequest(std::move(aPayload));
-    SuccessOrExit(err);
 
-exit:
     if (err != CHIP_NO_ERROR)
     {
         ChipLogFunctError(err);
@@ -96,6 +81,12 @@ CHIP_ERROR ReadHandler::SendReportData(System::PacketBufferHandle && aPayload)
     VerifyOrExit(mpExchangeCtx != nullptr, err = CHIP_ERROR_INCORRECT_STATE);
 
     err = mpExchangeCtx->SendMessage(Protocols::InteractionModel::MsgType::ReportData, std::move(aPayload));
+
+    if (err != CHIP_NO_ERROR)
+    {
+        mpExchangeCtx->Close();
+    }
+
 exit:
     ChipLogFunctError(err);
     Shutdown();
@@ -155,6 +146,17 @@ CHIP_ERROR ReadHandler::ProcessReadRequest(System::PacketBufferHandle && aPayloa
     MoveToState(HandlerState::Reportable);
 
     err = InteractionModelEngine::GetInstance()->GetReportingEngine().ScheduleRun();
+    SuccessOrExit(err);
+
+    // mpExchangeCtx can be null here due to
+    // https://github.com/project-chip/connectedhomeip/issues/8031
+    if (mpExchangeCtx)
+    {
+        mpExchangeCtx->WillSendMessage();
+    }
+
+    // There must be no code after the WillSendMessage() call that can cause
+    // this method to return a failure.
 
 exit:
     ChipLogFunctError(err);
@@ -292,15 +294,16 @@ bool ReadHandler::CheckEventClean(EventManagement & aEventManager)
 {
     if (mCurrentPriority == PriorityLevel::Invalid)
     {
-        // Upload is not in middle, previous mLastScheduledEventNumber is not valid, Check for new events, and set a checkpoint
-        for (size_t index = 0; index < ArraySize(mSelfProcessedEvents); index++)
+        // Upload is not in middle, previous mLastScheduledEventNumber is not valid, Check for new events from Critical high
+        // priority to Debug low priority, and set a checkpoint when there is dirty events
+        for (int index = ArraySize(mSelfProcessedEvents) - 1; index >= 0; index--)
         {
             EventNumber lastEventNumber = aEventManager.GetLastEventNumber(static_cast<PriorityLevel>(index));
             if ((lastEventNumber != 0) && (lastEventNumber >= mSelfProcessedEvents[index]))
             {
                 // We have more events. snapshot last event IDs
                 aEventManager.SetScheduledEventEndpoint(&(mLastScheduledEventNumber[0]));
-                // initialize the next priority level to transfer
+                // initialize the next dirty priority level to transfer
                 MoveToNextScheduledDirtyPriority();
                 return false;
             }
@@ -318,7 +321,7 @@ bool ReadHandler::CheckEventClean(EventManagement & aEventManager)
 
 void ReadHandler::MoveToNextScheduledDirtyPriority()
 {
-    for (uint8_t i = 0; i < ArraySize(mSelfProcessedEvents); i++)
+    for (int i = ArraySize(mSelfProcessedEvents) - 1; i >= 0; i--)
     {
         if ((mLastScheduledEventNumber[i] != 0) && mSelfProcessedEvents[i] <= mLastScheduledEventNumber[i])
         {

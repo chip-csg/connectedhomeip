@@ -35,6 +35,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
+#include "shell_extension/launch.h"
 
 #include <cmath>
 #include <cstdio>
@@ -52,6 +53,8 @@
 #include <app/server/Server.h>
 #include <app/util/af-types.h>
 #include <app/util/af.h>
+#include <credentials/DeviceAttestationCredsProvider.h>
+#include <credentials/examples/DeviceAttestationCredsExample.h>
 #include <lib/shell/Engine.h>
 #include <platform/CHIPDeviceLayer.h>
 #include <setup_payload/ManualSetupPayloadGenerator.h>
@@ -63,7 +66,12 @@
 #include <app/clusters/on-off-server/on-off-server.h>
 #include <app/clusters/temperature-measurement-server/temperature-measurement-server.h>
 
+#if CONFIG_ENABLE_PW_RPC
+#include "Rpc.h"
+#endif
+
 using namespace ::chip;
+using namespace ::chip::Credentials;
 using namespace ::chip::DeviceManager;
 using namespace ::chip::DeviceLayer;
 
@@ -83,6 +91,10 @@ using namespace ::chip::DeviceLayer;
 #elif CONFIG_DEVICE_TYPE_ESP32_DEVKITC
 
 #define STATUS_LED_GPIO_NUM GPIO_NUM_2 // Use LED1 (blue LED) as status LED on DevKitC
+
+#elif CONFIG_DEVICE_TYPE_ESP32_C3_DEVKITM
+
+#define STATUS_LED_GPIO_NUM GPIO_NUM_8
 
 #else // !CONFIG_DEVICE_TYPE_ESP32_DEVKITC
 
@@ -318,12 +330,14 @@ class SetupListModel : public ListScreen::Model
 public:
     SetupListModel()
     {
-        std::string resetWiFi              = "Reset WiFi";
-        std::string resetToFactory         = "Reset to factory";
-        std::string forceWifiCommissioning = "Force WiFi commissioning";
+        std::string resetWiFi                      = "Reset WiFi";
+        std::string resetToFactory                 = "Reset to factory";
+        std::string forceWifiCommissioningBasic    = "Force WiFi commissioning (basic)";
+        std::string forceWifiCommissioningEnhanced = "Force WiFi commissioning (enhanced)";
         options.emplace_back(resetWiFi);
         options.emplace_back(resetToFactory);
-        options.emplace_back(forceWifiCommissioning);
+        options.emplace_back(forceWifiCommissioningBasic);
+        options.emplace_back(forceWifiCommissioningEnhanced);
     }
     virtual std::string GetTitle() { return "Setup"; }
     virtual int GetItemCount() { return options.size(); }
@@ -334,7 +348,7 @@ public:
         if (i == 0)
         {
             ConnectivityMgr().ClearWiFiStationProvision();
-            OpenDefaultPairingWindow(ResetAdmins::kYes);
+            OpenBasicCommissioningWindow(ResetFabrics::kYes);
         }
         else if (i == 1)
         {
@@ -342,8 +356,13 @@ public:
         }
         else if (i == 2)
         {
-            app::Mdns::AdvertiseCommissionableNode();
-            OpenDefaultPairingWindow(ResetAdmins::kYes, PairingWindowAdvertisement::kMdns);
+            app::Mdns::AdvertiseCommissionableNode(app::Mdns::CommissioningMode::kEnabledBasic);
+            OpenBasicCommissioningWindow(ResetFabrics::kYes, kNoCommissioningTimeout, PairingWindowAdvertisement::kMdns);
+        }
+        else if (i == 3)
+        {
+            app::Mdns::AdvertiseCommissionableNode(app::Mdns::CommissioningMode::kEnabledEnhanced);
+            OpenBasicCommissioningWindow(ResetFabrics::kYes, kNoCommissioningTimeout, PairingWindowAdvertisement::kMdns);
         }
     }
 
@@ -371,9 +390,7 @@ void SetupInitialLevelControlValues(chip::EndpointId endpointId)
     uint8_t level = UINT8_MAX;
 
     emberAfWriteAttribute(endpointId, ZCL_LEVEL_CONTROL_CLUSTER_ID, ZCL_CURRENT_LEVEL_ATTRIBUTE_ID, CLUSTER_MASK_SERVER, &level,
-                          ZCL_DATA8_ATTRIBUTE_TYPE);
-    emberAfWriteAttribute(endpointId, ZCL_LEVEL_CONTROL_CLUSTER_ID, ZCL_ON_LEVEL_ATTRIBUTE_ID, CLUSTER_MASK_SERVER, &level,
-                          ZCL_DATA8_ATTRIBUTE_TYPE);
+                          ZCL_INT8U_ATTRIBUTE_TYPE);
 }
 
 void SetupPretendDevices()
@@ -544,7 +561,7 @@ std::string createSetupPayload()
 
     if (err != CHIP_NO_ERROR)
     {
-        ESP_LOGE(TAG, "Couldn't get payload string %d", err);
+        ESP_LOGE(TAG, "Couldn't get payload string %" CHIP_ERROR_FORMAT, err.Format());
     }
     return result;
 };
@@ -565,13 +582,6 @@ public:
     void OnPairingWindowClosed() override { pairingWindowLED.Set(false); }
 };
 
-#if CONFIG_ENABLE_CHIP_SHELL
-void ChipShellTask(void * args)
-{
-    chip::Shell::Engine::Root().RunMainLoop();
-}
-#endif // CONFIG_ENABLE_CHIP_SHELL
-
 } // namespace
 
 extern "C" void app_main()
@@ -590,27 +600,27 @@ extern "C" void app_main()
     ESP_LOGI(TAG, "%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
              (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
-    CHIP_ERROR err; // A quick note about errors: CHIP adopts the error type and numbering
-                    // convention of the environment into which it is ported.  Thus esp_err_t
-                    // and CHIP_ERROR are in fact the same type, and both ESP-IDF errors
-                    // and CHIO-specific errors can be stored in the same value without
-                    // ambiguity.  For convenience, ESP_OK and CHIP_NO_ERROR are mapped
-                    // to the same value.
-
     // Initialize the ESP NVS layer.
-    err = nvs_flash_init();
-    if (err != CHIP_NO_ERROR)
+    esp_err_t err = nvs_flash_init();
+    if (err != ESP_OK)
     {
-        ESP_LOGE(TAG, "nvs_flash_init() failed: %s", ErrorStr(err));
+        ESP_LOGE(TAG, "nvs_flash_init() failed: %s", esp_err_to_name(err));
         return;
     }
+#if CONFIG_ENABLE_PW_RPC
+    chip::rpc::Init();
+#endif
+
+#if CONFIG_ENABLE_CHIP_SHELL
+    chip::LaunchShell();
+#endif // CONFIG_ENABLE_CHIP_SHELL
 
     CHIPDeviceManager & deviceMgr = CHIPDeviceManager::GetInstance();
 
-    err = deviceMgr.Init(&EchoCallbacks);
-    if (err != CHIP_NO_ERROR)
+    CHIP_ERROR error = deviceMgr.Init(&EchoCallbacks);
+    if (error != CHIP_NO_ERROR)
     {
-        ESP_LOGE(TAG, "device.Init() failed: %s", ErrorStr(err));
+        ESP_LOGE(TAG, "device.Init() failed: %s", ErrorStr(error));
         return;
     }
 
@@ -626,9 +636,8 @@ extern "C" void app_main()
     AppCallbacks callbacks;
     InitServer(&callbacks);
 
-#if CONFIG_ENABLE_CHIP_SHELL
-    xTaskCreate(&ChipShellTask, "chip_shell", 2048, NULL, 5, NULL);
-#endif
+    // Initialize device attestation config
+    SetDeviceAttestationCredentialsProvider(Examples::GetExampleDACProvider());
 
     SetupPretendDevices();
     SetupInitialLevelControlValues(/* endpointId = */ 1);
@@ -639,8 +648,8 @@ extern "C" void app_main()
 
     {
         std::vector<char> qrCode(3 * qrCodeText.size() + 1);
-        err = EncodeQRCodeToUrl(qrCodeText.c_str(), qrCodeText.size(), qrCode.data(), qrCode.max_size());
-        if (err == CHIP_NO_ERROR)
+        error = EncodeQRCodeToUrl(qrCodeText.c_str(), qrCodeText.size(), qrCode.data(), qrCode.max_size());
+        if (error == CHIP_NO_ERROR)
         {
             ESP_LOGI(TAG, "Copy/paste the below URL in a browser to see the QR CODE:\n\t%s?data=%s", QRCODE_BASE_URL,
                      qrCode.data());
@@ -652,7 +661,7 @@ extern "C" void app_main()
     err = InitDisplay();
     if (err != ESP_OK)
     {
-        ESP_LOGE(TAG, "InitDisplay() failed: %s", ErrorStr(err));
+        ESP_LOGE(TAG, "InitDisplay() failed: %s", esp_err_to_name(err));
         return;
     }
 
@@ -664,9 +673,9 @@ extern "C" void app_main()
     for (int i = 0; i < buttons.size(); ++i)
     {
         err = buttons[i].Init(button_gpios[i], 50);
-        if (err != CHIP_NO_ERROR)
+        if (err != ESP_OK)
         {
-            ESP_LOGE(TAG, "Button.Init() failed: %s", ErrorStr(err));
+            ESP_LOGE(TAG, "Button.Init() failed: %s", esp_err_to_name(err));
             return;
         }
     }
@@ -769,4 +778,9 @@ extern "C" void app_main()
 
         vTaskDelay(50 / portTICK_PERIOD_MS);
     }
+}
+
+bool lowPowerClusterSleep()
+{
+    return true;
 }
